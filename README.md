@@ -1,4 +1,8 @@
-# Backend de login em PHP
+# Infinity Metalique
+
+O Infinity Metalique é uma plataforma que centraliza as ferramentas e informações da empresa em um único lugar, ajudando na organização de processos, indicadores, documentos e setores.
+
+## Backend de login em PHP
 
 Backend de autenticação sem interface pronta. Ele usa PHP 8+, MySQL, PDO, hash seguro de senha, sessão, proteção CSRF, limite de tentativas e respostas JSON.
 
