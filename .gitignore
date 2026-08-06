@@ -1,6 +1,0 @@
-.env
-.agents/
-.gitrepo/
-.vscode/
-.idea/
-*.log
