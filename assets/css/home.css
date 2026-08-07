@@ -1,0 +1,362 @@
+/* Fonte usada no frame original. Caso não carregue, Segoe UI é o fallback. */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;600&display=swap");
+
+/* Carrega cores, reset e estrutura compartilhada pelo sistema. */
+@import url("base.css");
+
+/* ==========================================================
+   PÁGINA INICIAL — PROPORÇÕES DO FRAME 1788 × 1005,75
+   As porcentagens abaixo foram calculadas a partir do Figma.
+   ========================================================== */
+.home-frame {
+    grid-template-columns: 47.55% 52.45%;
+    padding: 3.47vh 3.42vw;
+    font-family: "Inter", "Segoe UI", Arial, sans-serif;
+}
+
+/* ==========================================================
+   PAINEL ESQUERDO: MÁQUINA E CARTÃO DA EQUIPE
+   ========================================================== */
+.home-visual {
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+    border-radius: clamp(24px, 2.8vw, 50px) 0 0 clamp(24px, 2.8vw, 50px);
+    background: var(--metalique-red);
+}
+
+/* A janela é maior que a coluna porque a imagem avança sob o painel branco. */
+.machine-window {
+    position: absolute;
+    top: -0.32%;
+    left: 0;
+    width: 110.3%;
+    height: 75.17%;
+    overflow: hidden;
+    border-radius: clamp(24px, 2.8vw, 50px);
+}
+
+/* Recorte interno informado pelo próprio nó da imagem no Figma. */
+.machine-image {
+    position: absolute;
+    top: -4.46%;
+    left: -3.06%;
+    width: 100%;
+    height: 155.09%;
+    max-width: none;
+    display: block;
+}
+
+/* Navegação posicionada nas coordenadas proporcionais do Figma. */
+.home-visual .top-navigation {
+    top: 5%;
+    left: 8%;
+    gap: clamp(26px, 3.34vw, 60px);
+}
+
+.home-visual .brand-link img {
+    width: clamp(60px, 5.93vw, 106px);
+}
+
+.home-visual .navigation-links {
+    gap: clamp(5px, 0.55vw, 10px);
+}
+
+.home-visual .navigation-links a {
+    padding: clamp(3px, 0.46vh, 5px) clamp(9px, 0.94vw, 17px);
+    font-size: clamp(12px, 1.56vw, 29.8px);
+    font-weight: 300;
+    letter-spacing: -0.05em;
+}
+
+/* Cartão inferior com altura e largura iguais às do componente no Figma. */
+.team-card {
+    position: absolute;
+    z-index: 3;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 33.89%;
+    overflow: hidden;
+    color: var(--white);
+    background: var(--metalique-red);
+    border-radius: clamp(24px, 2.6vw, 46.5px);
+}
+
+.team-card-shape {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.team-summary {
+    position: absolute;
+    z-index: 2;
+    top: 22.6%;
+    left: 8.1%;
+    display: flex;
+    align-items: center;
+}
+
+.team-summary img {
+    width: clamp(20px, 1.85vw, 33px);
+    height: clamp(20px, 1.85vw, 33px);
+    margin-left: clamp(-16px, -0.9vw, -8px);
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.team-summary img:first-child {
+    margin-left: 0;
+}
+
+.team-summary small {
+    margin-left: clamp(6px, 0.5vw, 9px);
+    font-size: clamp(9px, 1.01vw, 19.3px);
+    font-weight: 300;
+    letter-spacing: -0.05em;
+}
+
+.team-message {
+    position: absolute;
+    z-index: 2;
+    top: 34.6%;
+    left: 7.53%;
+    width: 58.34%;
+    margin: 0;
+    font-size: clamp(30px, 3.63vw, 69.55px);
+    font-weight: 300;
+    line-height: 1.047;
+    letter-spacing: -0.05em;
+}
+
+/* O círculo tem 156 px no frame e fica centralizado no recorte do cartão. */
+.round-arrow {
+    position: absolute;
+    z-index: 3;
+    top: 50%;
+    left: 82.92%;
+    width: min(18.35%, 156px);
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    transform: translate(-50%, -50%);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    border-radius: 50%;
+    transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.round-arrow img {
+    width: 38.5%;
+    height: 33%;
+    display: block;
+    transform: rotate(-45deg);
+}
+
+.round-arrow:hover,
+.round-arrow:focus-visible {
+    transform: translate(-50%, -52%);
+    background: var(--white-10);
+}
+
+/* ==========================================================
+   PAINEL DIREITO: TEXTO E ACESSOS
+   ========================================================== */
+.home-content {
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+    border-radius: clamp(24px, 2.43vw, 46.5px);
+    background: var(--white);
+}
+
+.access-links {
+    position: absolute;
+    z-index: 5;
+    top: 5%;
+    right: 4.4%;
+    display: flex;
+    align-items: center;
+    gap: clamp(7px, 0.67vw, 12px);
+}
+
+.outline-button,
+.solid-button {
+    padding: clamp(3px, 0.46vh, 5px) clamp(9px, 0.94vw, 17px);
+    border: 1px solid var(--metalique-red);
+    border-radius: 999px;
+    color: var(--metalique-red);
+    font-size: clamp(12px, 1.56vw, 29.8px);
+    font-weight: 300;
+    line-height: 0.8654;
+    letter-spacing: -0.05em;
+}
+
+.solid-button {
+    color: var(--white);
+    background: var(--metalique-red);
+}
+
+.hero-copy {
+    position: absolute;
+    z-index: 2;
+    top: 14.35%;
+    left: 9.53%;
+    width: 77.06%;
+    color: var(--metalique-red);
+}
+
+.hero-copy h1 {
+    margin: 0;
+    font-size: clamp(30px, 3.63vw, 69.55px);
+    font-weight: 600;
+    line-height: 1.047;
+    letter-spacing: -0.05em;
+}
+
+.hero-copy p {
+    width: 69%;
+    margin: clamp(10px, 1.3vh, 23px) 0 0;
+    font-size: clamp(14px, 1.56vw, 29.8px);
+    font-weight: 300;
+    line-height: 0.95;
+    letter-spacing: -0.05em;
+}
+
+/* Três vetores separados reproduzem as linhas inferiores do frame. */
+.red-lines {
+    position: absolute;
+    z-index: 1;
+    bottom: -8%;
+    left: 0;
+    width: 40.2%;
+    height: 27%;
+}
+
+.red-lines img {
+    position: absolute;
+    top: 0;
+    width: 36%;
+    height: 100%;
+    display: block;
+}
+
+.red-lines img:nth-child(1) {
+    left: 0;
+}
+
+.red-lines img:nth-child(2) {
+    left: 27.5%;
+}
+
+.red-lines img:nth-child(3) {
+    left: 55%;
+}
+
+.start-button {
+    position: absolute;
+    z-index: 3;
+    right: 0;
+    bottom: 0;
+    width: 46.47%;
+    height: 11.02%;
+    display: grid;
+    place-items: center;
+    border-radius: clamp(24px, 2.6vw, 46.5px) 0 0 0;
+    color: var(--white);
+    background: var(--metalique-red);
+    font-size: clamp(16px, 1.92vw, 36.76px);
+    font-weight: 600;
+    line-height: 1.047;
+    letter-spacing: -0.05em;
+}
+
+.start-button:hover,
+.start-button:focus-visible {
+    background: #c20d0d;
+}
+
+/* ==========================================================
+   TABLETS E CELULARES
+   A composição passa de duas colunas para dois painéis empilhados.
+   ========================================================== */
+@media (max-width: 820px) {
+    .home-frame {
+        grid-template-columns: 1fr;
+    }
+
+    .home-visual {
+        min-height: 560px;
+        border-radius: var(--frame-radius) var(--frame-radius) 0 0;
+    }
+
+    .home-content {
+        min-height: 560px;
+        border-radius: 0 0 var(--frame-radius) var(--frame-radius);
+    }
+
+    .machine-window {
+        width: 100%;
+    }
+
+    .team-message {
+        font-size: 38px;
+    }
+
+    .round-arrow {
+        width: 90px;
+    }
+
+    .hero-copy h1 {
+        font-size: clamp(31px, 7vw, 46px);
+    }
+
+    .hero-copy p {
+        font-size: clamp(14px, 3.5vw, 20px);
+    }
+
+    .outline-button,
+    .solid-button,
+    .home-visual .navigation-links a {
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 520px) {
+    .home-visual {
+        min-height: 520px;
+    }
+
+    .home-visual .top-navigation {
+        left: 20px;
+        gap: 20px;
+    }
+
+    .team-message {
+        font-size: 30px;
+    }
+
+    .round-arrow {
+        width: 64px;
+    }
+
+    .access-links {
+        right: 20px;
+    }
+
+    .hero-copy {
+        left: 25px;
+        width: calc(100% - 50px);
+    }
+
+    .hero-copy h1 {
+        font-size: 31px;
+    }
+
+    .start-button {
+        min-height: 62px;
+        font-size: 17px;
+    }
+}
