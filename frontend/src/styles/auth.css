@@ -1,0 +1,410 @@
+/* Fonte usada nos frames de autenticação. */
+
+/* Carrega cores, reset e estrutura compartilhada pelo sistema. */
+
+/* ==========================================================
+   LOGIN — PROPORÇÕES DO FRAME 1788 × 1005,75
+   ========================================================== */
+.login-frame {
+    grid-template-columns: 47.55% 52.45%;
+    padding: 3.47vh 3.42vw;
+    font-family: "Inter", "Segoe UI", Arial, sans-serif;
+}
+
+/* ==========================================================
+   PAINEL ESQUERDO: BOAS-VINDAS
+   ========================================================== */
+.login-visual {
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+    border-radius: clamp(24px, 2.43vw, 46.5px) 0 0 clamp(24px, 2.43vw, 46.5px);
+    color: var(--white);
+    background: var(--metalique-red);
+}
+
+/* A imagem cobre todo o painel de boas-vindas nas telas de acesso. */
+.auth-machine-window {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    border-radius: clamp(24px, 2.8vw, 50px);
+}
+
+.auth-machine-image {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    display: block;
+    object-fit: cover;
+    object-position: center;
+    filter: blur(clamp(14px, 1.35vw, 24px));
+    transform: scale(1.08);
+}
+
+/* Máscara translúcida original, incluindo o recorte do botão Voltar. */
+.auth-panel-overlay {
+    position: absolute;
+    z-index: 2;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* Ajustes da navegação conforme as coordenadas do frame. */
+.login-visual .top-navigation {
+    top: 5%;
+    left: 8%;
+    gap: clamp(26px, 3.34vw, 60px);
+}
+
+.login-visual .brand-link img {
+    width: clamp(60px, 5.93vw, 106px);
+}
+
+.login-visual .navigation-links {
+    gap: clamp(5px, 0.55vw, 10px);
+}
+
+.login-visual .navigation-links a {
+    padding: clamp(3px, 0.46vh, 5px) clamp(9px, 0.94vw, 17px);
+    font-size: clamp(12px, 1.56vw, 29.8px);
+    font-weight: 300;
+    letter-spacing: -0.05em;
+}
+
+.welcome-copy {
+    position: absolute;
+    z-index: 4;
+    top: 21.05%;
+    left: 7.53%;
+    width: 78.6%;
+}
+
+.welcome-copy h1 {
+    margin: 0;
+    font-size: clamp(33px, 4.13vw, 79.23px);
+    font-weight: 300;
+    line-height: 1.047;
+    letter-spacing: -0.05em;
+}
+
+.welcome-copy p {
+    width: 74.7%;
+    margin: clamp(8px, 1.25vh, 13px) 0 0;
+    font-size: clamp(14px, 1.56vw, 29.8px);
+    font-weight: 300;
+    line-height: 0.8654;
+    letter-spacing: -0.05em;
+}
+
+.back-link {
+    position: absolute;
+    z-index: 4;
+    bottom: 6.62%;
+    left: 6.8%;
+    display: flex;
+    align-items: center;
+    gap: clamp(12px, 1.73vw, 31px);
+    font-size: clamp(18px, 2.34vw, 44.87px);
+    font-weight: 300;
+    line-height: 1;
+    letter-spacing: 0;
+    white-space: nowrap;
+}
+
+.back-link span {
+    width: clamp(42px, 4.58vw, 82px);
+    flex: 0 0 clamp(42px, 4.58vw, 82px);
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--metalique-red);
+}
+
+.back-link span img {
+    width: 39.35%;
+    height: 45.6%;
+    display: block;
+    transform: rotate(180deg);
+}
+
+.back-link:hover span,
+.back-link:focus-visible span {
+    background: #c20d0d;
+}
+
+/* ==========================================================
+   PAINEL DIREITO: LOGOTIPO E FORMULÁRIO
+   ========================================================== */
+.login-content {
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+    border-radius: clamp(24px, 2.43vw, 46.5px);
+    background: var(--white);
+}
+
+.login-logo {
+    position: absolute;
+    top: 15.29%;
+    left: 33.7%;
+    width: 32.96%;
+    height: auto;
+    margin: 0;
+    display: block;
+}
+
+.login-form {
+    position: absolute;
+    z-index: 3;
+    top: 37.26%;
+    left: 22.39%;
+    width: 55.34%;
+    margin: 0;
+    color: var(--metalique-red);
+}
+
+.form-feedback {
+    position: absolute;
+    bottom: calc(100% + clamp(12px, 1.8vh, 18px));
+    left: 0;
+    width: 100%;
+    margin: 0;
+    padding: 8px 12px;
+    border: 1px solid rgba(219, 15, 15, 0.35);
+    border-radius: 6px;
+    color: #a50b0b;
+    background: #fff1f1;
+    font-size: clamp(11px, 0.85vw, 15px);
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: 0;
+}
+
+.form-field + .form-field {
+    margin-top: clamp(12px, 2.28vh, 23px);
+}
+
+.form-field label {
+    display: block;
+    margin: 0 0 clamp(6px, 1.25vh, 13px);
+    font-size: clamp(13px, 1.56vw, 29.8px);
+    font-weight: 300;
+    line-height: 0.8654;
+    letter-spacing: -0.05em;
+}
+
+.form-field input {
+    width: 100%;
+    height: clamp(20px, 3.98vh, 40px);
+    padding: 3px clamp(10px, 0.94vw, 17px);
+    border: 1px solid var(--metalique-red);
+    border-radius: 999px;
+    outline: none;
+    color: var(--text-dark);
+    background: var(--white);
+    font: 300 clamp(12px, 1.3vw, 24px) "Inter", "Segoe UI", Arial, sans-serif;
+}
+
+.password-control {
+    position: relative;
+}
+
+.password-control input {
+    padding-right: clamp(42px, 3vw, 54px);
+}
+
+.password-toggle {
+    position: absolute;
+    top: 50%;
+    right: 5px;
+    width: clamp(30px, 2.1vw, 38px);
+    height: clamp(26px, 3.1vh, 34px);
+    padding: 0;
+    display: grid;
+    place-items: center;
+    transform: translateY(-50%);
+    border: 0;
+    border-radius: 50%;
+    color: var(--metalique-red);
+    background: transparent;
+    cursor: pointer;
+}
+
+.password-toggle:hover,
+.password-toggle:focus-visible {
+    background: rgba(219, 15, 15, 0.09);
+}
+
+.password-toggle svg {
+    width: 55%;
+    height: 55%;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.password-toggle.is-visible::after {
+    position: absolute;
+    width: 58%;
+    height: 2px;
+    transform: rotate(-45deg);
+    border-radius: 999px;
+    background: currentColor;
+    content: "";
+}
+
+.form-field input:focus {
+    border-width: 2px;
+    box-shadow: 0 0 0 3px rgba(219, 15, 15, 0.1);
+}
+
+.forgot-password {
+    margin-top: clamp(26px, 6.55vh, 66px);
+    display: inline-block;
+    font-size: clamp(12px, 1.38vw, 26.41px);
+    font-weight: 300;
+    line-height: 0.8654;
+    letter-spacing: -0.05em;
+}
+
+.forgot-password:hover,
+.forgot-password:focus-visible {
+    text-decoration: underline;
+}
+
+.login-content .login-button {
+    position: absolute;
+    z-index: 4;
+    right: 0;
+    bottom: 0;
+    width: 46.47%;
+    height: 11.02%;
+    border: 0;
+    border-radius: clamp(24px, 2.43vw, 46.5px) 0 0 0;
+    color: var(--white);
+    background: var(--metalique-red);
+    font: 600 clamp(16px, 1.92vw, 36.76px) "Inter", "Segoe UI", Arial, sans-serif;
+    line-height: 1.047;
+    letter-spacing: -0.05em;
+    cursor: pointer;
+}
+
+.login-content .login-button:hover,
+.login-content .login-button:focus-visible {
+    background: #c20d0d;
+}
+
+/* Três vetores formam a arte inferior do painel branco. */
+.login-red-lines {
+    position: absolute;
+    z-index: 1;
+    bottom: -8%;
+    left: 0;
+    width: 40.2%;
+    height: 27%;
+}
+
+.login-red-lines img {
+    position: absolute;
+    top: 0;
+    width: 36%;
+    height: 100%;
+    display: block;
+}
+
+.login-red-lines img:nth-child(1) {
+    left: 0;
+}
+
+.login-red-lines img:nth-child(2) {
+    left: 27.5%;
+}
+
+.login-red-lines img:nth-child(3) {
+    left: 55%;
+}
+
+/* ==========================================================
+   TABLETS E CELULARES
+   ========================================================== */
+@media (max-width: 820px) {
+    .login-frame {
+        grid-template-columns: 1fr;
+    }
+
+    .login-visual {
+        min-height: 560px;
+        border-radius: var(--frame-radius) var(--frame-radius) 0 0;
+    }
+
+    .login-content {
+        min-height: 560px;
+        border-radius: 0 0 var(--frame-radius) var(--frame-radius);
+    }
+
+    .auth-machine-window {
+        width: 100%;
+    }
+
+    .login-logo {
+        top: 8%;
+        left: 32%;
+        width: 36%;
+    }
+
+    .login-form {
+        top: 33%;
+        left: 10%;
+        width: 80%;
+    }
+
+    .form-field label,
+    .forgot-password,
+    .login-visual .navigation-links a {
+        font-size: 14px;
+    }
+
+    .form-field input {
+        height: 34px;
+    }
+
+    .login-content .login-button {
+        min-height: 62px;
+        font-size: 17px;
+    }
+}
+
+@media (max-width: 520px) {
+    .login-visual {
+        min-height: 520px;
+    }
+
+    .login-visual .top-navigation {
+        left: 20px;
+        gap: 20px;
+    }
+
+    .welcome-copy {
+        right: 20px;
+        left: 20px;
+        width: auto;
+    }
+
+    .welcome-copy h1 {
+        font-size: 35px;
+    }
+
+    .back-link {
+        left: 20px;
+        font-size: 20px;
+    }
+}

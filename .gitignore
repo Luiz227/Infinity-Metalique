@@ -1,0 +1,11 @@
+/backend/.env
+/assets/uploads/profiles/*
+!/assets/uploads/profiles/.gitkeep
+!/assets/uploads/profiles/.htaccess
+/frontend/node_modules/
+/frontend/dist/
+/frontend/*.log
+/php-server*.log
+*.tsbuildinfo
+/frontend/vite.config.js
+/frontend/vite.config.d.ts
