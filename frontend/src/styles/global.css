@@ -1,12 +1,16 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;600&display=swap");
+/* A Inter é carregada pelo <link> em index.html: um @import aqui repetiria o
+   download e ainda bloquearia a renderização até o CSS externo chegar. */
 @import "tailwindcss";
 @import "./base.css";
 @import "./home.css";
 @import "./auth.css";
 @import "./access-request.css";
+@import "./quality.css";
 
 @theme {
-  --font-sans: "Inter", "Segoe UI", Arial, sans-serif;
+  /* Fonte única do projeto. O sans-serif final é só a rede de segurança do
+     navegador caso a Inter não carregue — nenhuma outra família é escolhida. */
+  --font-sans: "Inter", sans-serif;
   --color-metalique: #db0f0f;
 }
 
@@ -26,12 +30,22 @@ body {
   margin: 0;
 }
 
+/* Controles de formulário não herdam fonte por padrão: sem esta regra, select e
+   textarea aparecem na fonte do sistema operacional. */
 button,
-input {
+input,
+select,
+textarea,
+optgroup {
   font: inherit;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+/* Dentro de @layer base para que continue sendo só um padrão: no Tailwind v4 uma
+   regra fora de camada vence qualquer utilitário, e este reset apagava classes
+   como text-white aplicadas diretamente no link. */
+@layer base {
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 }

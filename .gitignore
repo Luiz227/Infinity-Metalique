@@ -1,7 +1,11 @@
 /backend/.env
+/backend/database/seed_quality.sql
 /assets/uploads/profiles/*
 !/assets/uploads/profiles/.gitkeep
 !/assets/uploads/profiles/.htaccess
+/assets/uploads/dispatches/*
+!/assets/uploads/dispatches/.gitkeep
+!/assets/uploads/dispatches/.htaccess
 /frontend/node_modules/
 /frontend/dist/
 /frontend/*.log

@@ -1,0 +1,64 @@
+/* ==========================================================
+   VIEW DA QUALIDADE
+   Só o que o Tailwind não resolve: comportamento de impressão
+   e o ajuste dos rótulos dos gráficos.
+   ========================================================== */
+
+/* Recharts injeta um foco pontilhado ao clicar nas barras; o app usa anel próprio. */
+.recharts-wrapper:focus,
+.recharts-surface:focus {
+    outline: none;
+}
+
+/* Rótulos do Recharts herdam a fonte do app em vez do padrão da biblioteca. */
+.recharts-text {
+    font-family: inherit;
+}
+
+/* ----------------------------------------------------------
+   IMPRESSÃO
+   A folha do RAP/coleta é o único conteúdo que vai ao papel.
+   ---------------------------------------------------------- */
+@media print {
+    /* Esconde tudo e reexibe apenas a folha, que passa a ocupar a página. */
+    body * {
+        visibility: hidden;
+    }
+
+    .quality-print-sheet,
+    .quality-print-sheet * {
+        visibility: visible;
+    }
+
+    .quality-print-overlay {
+        position: static;
+        overflow: visible;
+        padding: 0;
+        background: none;
+    }
+
+    .quality-print-actions {
+        display: none;
+    }
+
+    .quality-print-sheet {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        max-width: none;
+        padding: 0;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    /* Assinaturas e blocos não podem ser partidos entre duas folhas. */
+    .quality-print-sheet section,
+    .quality-print-sheet footer {
+        break-inside: avoid;
+    }
+
+    @page {
+        size: A4;
+        margin: 14mm;
+    }
+}

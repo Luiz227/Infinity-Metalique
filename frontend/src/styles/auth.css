@@ -8,7 +8,7 @@
 .login-frame {
     grid-template-columns: 47.55% 52.45%;
     padding: 3.47vh 3.42vw;
-    font-family: "Inter", "Segoe UI", Arial, sans-serif;
+    font-family: var(--font-sans);
 }
 
 /* ==========================================================
@@ -209,7 +209,7 @@
     outline: none;
     color: var(--text-dark);
     background: var(--white);
-    font: 300 clamp(12px, 1.3vw, 24px) "Inter", "Segoe UI", Arial, sans-serif;
+    font: 300 clamp(12px, 1.3vw, 24px) var(--font-sans);
 }
 
 .password-control {
@@ -292,7 +292,7 @@
     border-radius: clamp(24px, 2.43vw, 46.5px) 0 0 0;
     color: var(--white);
     background: var(--metalique-red);
-    font: 600 clamp(16px, 1.92vw, 36.76px) "Inter", "Segoe UI", Arial, sans-serif;
+    font: 600 clamp(16px, 1.92vw, 36.76px) var(--font-sans);
     line-height: 1.047;
     letter-spacing: -0.05em;
     cursor: pointer;

@@ -10,6 +10,86 @@
     --white-10: rgba(255, 255, 255, 0.1);
     --text-dark: #242424;
     --frame-radius: 24px;
+    /* O polegar visível é track - 2x inset. O recuo precisa ser maior do que o
+       avanço da curva do painel na altura em que a barra começa (4,3px para o
+       raio de 53px), senão o canto arredondado corta o polegar. */
+    --scrollbar-track: 20px;
+    --scrollbar-inset: 7px;
+    --scrollbar-thumb: rgba(11, 11, 11, 0.22);
+    --scrollbar-thumb-hover: rgba(11, 11, 11, 0.38);
+}
+
+/* ==========================================================
+   BARRA DE ROLAGEM
+   Fina, sem setas e recuada da borda, para ficar dentro do painel
+   em vez de encostar no canto arredondado dele.
+   ========================================================== */
+
+/* O Firefox só entende as propriedades padrão, que não permitem recuo.
+   O @supports evita declará-las no Chromium: lá, definir scrollbar-width
+   faz o navegador ignorar todo o bloco ::-webkit-scrollbar abaixo. */
+@supports not selector(::-webkit-scrollbar) {
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--scrollbar-thumb) transparent;
+    }
+}
+
+*::-webkit-scrollbar {
+    width: var(--scrollbar-track);
+    height: var(--scrollbar-track);
+}
+
+/* Sem trilho: só o polegar aparece, e apenas quando há o que rolar. */
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb);
+    /* A borda transparente é o recuo: o polegar visível fica com
+       14 - 2x4 = 6px e flutua afastado da borda do container.
+       Sem o background-clip a cor pintaria por baixo dessa borda. */
+    border: var(--scrollbar-inset) solid transparent;
+    background-clip: padding-box;
+    border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scrollbar-thumb-hover);
+}
+
+/* Reserva o espaço da barra mesmo sem rolagem, para o conteúdo não
+   deslocar ao alternar entre uma tela que rola e outra que não rola. */
+.app-scroll {
+    scrollbar-gutter: stable;
+}
+
+/* ==========================================================
+   MENUS SUSPENSOS
+   Abertura dos componentes shadcn. Escrita à mão porque o projeto
+   não usa o plugin de animação do Tailwind.
+   ========================================================== */
+@keyframes ui-pop-in {
+    from {
+        opacity: 0;
+        transform: scale(0.97);
+    }
+}
+
+[data-slot="select-content"][data-state="open"],
+[data-slot="popover-content"][data-state="open"] {
+    animation: ui-pop-in 120ms ease-out;
+    transform-origin: var(--radix-select-content-transform-origin, var(--radix-popover-content-transform-origin));
+}
+
+/* Quem pede menos movimento recebe o menu já aberto, sem escala. */
+@media (prefers-reduced-motion: reduce) {
+    [data-slot="select-content"][data-state="open"],
+    [data-slot="popover-content"][data-state="open"] {
+        animation: none;
+    }
 }
 
 /* Faz bordas e preenchimentos entrarem no cálculo do tamanho dos elementos. */
@@ -27,13 +107,16 @@ body {
     margin: 0;
     color: var(--text-dark);
     background: var(--metalique-red);
-    font-family: "Arial Narrow", "Segoe UI", Arial, sans-serif;
+    font-family: var(--font-sans);
 }
 
-/* Remove a decoração padrão dos links para permitir o estilo do projeto. */
-a {
-    color: inherit;
-    text-decoration: none;
+/* Remove a decoração padrão dos links para permitir o estilo do projeto.
+   Fica em @layer base para não sobrescrever cores aplicadas por classe no link. */
+@layer base {
+    a {
+        color: inherit;
+        text-decoration: none;
+    }
 }
 
 /* Moldura principal vermelha presente nas três páginas. */

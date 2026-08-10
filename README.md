@@ -53,6 +53,37 @@ O banco criado pelo script se chama `infinity_metalique`. A configuração padr�
 Se o seu MySQL usa outros dados, duplique `backend/.env.example` com o nome
 `backend/.env` e altere os valores. Esse arquivo local não é enviado ao Git.
 
+## Setor da qualidade
+
+A rota `/qualidade` reúne os indicadores do setor e o lançamento de RAP e de
+Produto Coletado. As tabelas ficam no mesmo banco `infinity_metalique`.
+
+Criar as tabelas (uma vez):
+
+```powershell
+C:\xampp\mysql\bin\mysql.exe -u root --default-character-set=utf8mb4 < backend\database\quality.sql
+```
+
+Importar a planilha `RELATÓRIO DE INSPEÇÃO.xlsm` para o banco:
+
+```powershell
+python -m pip install openpyxl
+python backend\database\import_quality.py "caminho\RELATÓRIO DE INSPEÇÃO.xlsm"
+C:\xampp\mysql\bin\mysql.exe -u root --default-character-set=utf8mb4 infinity_metalique < backend\database\seed_quality.sql
+```
+
+O script gera `backend/database/seed_quality.sql` e é idempotente: o SQL limpa as
+tabelas da qualidade antes de inserir, então rodar de novo substitui a carga
+anterior em vez de duplicá-la. O arquivo gerado não vai para o Git.
+
+O painel tem sete seções — RAPs, Unidades, Produtos, Produtos Coletados,
+Colaboradores, Qualidade e Registros — todas recortadas pela mesma barra de
+filtros. Cada gráfico tem uma tabela equivalente pelo botão **Tabela**, e RAPs e
+coletas podem ser impressos ou salvos em PDF pela caixa de impressão do navegador.
+
+Nesta entrega qualquer usuário autenticado acessa a view; a segmentação por área
+(marketing, comercial, supervisão) ainda não existe.
+
 ## Autenticação
 
 - A solicitação de acesso fica pendente e salva somente o hash da senha escolhida.
@@ -69,10 +100,16 @@ Se o seu MySQL usa outros dados, duplique `backend/.env.example` com o nome
 - `frontend/src/styles`: estilos globais e estilos das telas.
 - `frontend/public/images`: imagens utilizadas pela interface.
 - `frontend/src/components/ui`: componentes visuais baseados em shadcn e Radix.
+- `frontend/src/pages/quality`: view da qualidade — seções, formulários e impressão.
+- `frontend/src/components/layout`: cabeçalho e moldura compartilhados pelas telas internas.
 - `backend/config.php`: configuração e conexão PDO com o MySQL.
 - `backend/bootstrap.php`: sessão, CSRF, mensagens e funções compartilhadas.
 - `backend/auth.php`: solicitação de acesso, autenticação e sessão do usuário.
+- `backend/quality.php`: consultas dos indicadores e gravação de RAPs e coletas.
+- `backend/uploads.php`: validação e armazenamento das imagens enviadas.
 - `backend/api`: endpoints JSON consumidos pelo React.
 - `backend/database/schema.sql`: criação do banco e da tabela `users`.
+- `backend/database/quality.sql`: tabelas do setor da qualidade.
+- `backend/database/import_quality.py`: importa a planilha do setor para o banco.
 - `index.php`, `login.php`, `cadastro.php` e `sistema.php`: redirecionamentos de compatibilidade para as rotas React.
 - `assets/uploads`: fotos de perfil enviadas pelos usuários.

@@ -31,3 +31,23 @@ function requireApiMethod(string $method): void
         jsonResponse(['message' => 'Método não permitido.'], 405);
     }
 }
+
+/** Interrompe a requisição quando não há sessão ativa e devolve o usuário autenticado. */
+function requireApiUser(): array
+{
+    $user = currentUser();
+
+    if (!$user) {
+        jsonResponse(['message' => 'Faça login para continuar.'], 401);
+    }
+
+    return $user;
+}
+
+/** Interrompe a requisição quando o token CSRF do formulário não confere. */
+function requireCsrfToken(mixed $token): void
+{
+    if (!is_string($token) || !validCsrfToken($token)) {
+        jsonResponse(['message' => 'A sessão expirou. Atualize a página e tente novamente.'], 419);
+    }
+}

@@ -1,5 +1,3 @@
-/* Fonte usada no frame original. Caso não carregue, Segoe UI é o fallback. */
-
 /* Carrega cores, reset e estrutura compartilhada pelo sistema. */
 
 /* ==========================================================
@@ -9,7 +7,7 @@
 .home-frame {
     grid-template-columns: 47.55% 52.45%;
     padding: 3.47vh 3.42vw;
-    font-family: "Inter", "Segoe UI", Arial, sans-serif;
+    font-family: var(--font-sans);
 }
 
 /* ==========================================================
