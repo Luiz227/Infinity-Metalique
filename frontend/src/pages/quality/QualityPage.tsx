@@ -27,15 +27,16 @@ import {
   emptyFilters,
   filtersToQuery,
 } from "@/pages/quality/types"
+import type { PermissionKey } from "@/types"
 
 const TABS = [
-  { id: "raps", label: "RAPs" },
-  { id: "unidades", label: "Unidades" },
-  { id: "produtos", label: "Produtos" },
-  { id: "coletas", label: "Produtos Coletados" },
-  { id: "colaboradores", label: "Colaboradores" },
-  { id: "qualidade", label: "Qualidade" },
-  { id: "registros", label: "Registros" },
+  { id: "raps", label: "RAPs", permission: "quality.raps" },
+  { id: "unidades", label: "Unidades", permission: "quality.units" },
+  { id: "produtos", label: "Produtos", permission: "quality.products" },
+  { id: "coletas", label: "Produtos Coletados", permission: "quality.dispatches" },
+  { id: "colaboradores", label: "Colaboradores", permission: "quality.employees" },
+  { id: "qualidade", label: "Qualidade", permission: "quality.satisfaction" },
+  { id: "registros", label: "Registros", permission: "quality.records" },
 ] as const
 
 type TabId = (typeof TABS)[number]["id"]
@@ -48,7 +49,12 @@ type PrintTarget = { kind: "report" | "dispatch"; id: number }
  *
  * Devolve só o conteúdo do painel — a moldura e o cabeçalho vêm do AppShell.
  */
-export function QualityPage({ csrfToken }: { csrfToken: string }) {
+export function QualityPage({ csrfToken, canManage, permissions, tabsInHeader }: {
+  csrfToken: string
+  canManage: boolean
+  permissions: PermissionKey[]
+  tabsInHeader: boolean
+}) {
   const [filters, setFilters] = useState<QualityFilters>(emptyFilters)
   const [tab, setTab] = useState<TabId>("raps")
   const [options, setOptions] = useState<QualityOptions | null>(null)
@@ -66,6 +72,33 @@ export function QualityPage({ csrfToken }: { csrfToken: string }) {
   const [printTarget, setPrintTarget] = useState<PrintTarget | null>(null)
   const [printReport, setPrintReport] = useState<ReportDetail | null>(null)
   const [printDispatch, setPrintDispatch] = useState<DispatchDetail | null>(null)
+  const hasSectionPermissions = TABS.some((item) => permissions.includes(item.permission))
+  const visibleTabs = hasSectionPermissions
+    ? TABS.filter((item) => permissions.includes(item.permission))
+    : TABS
+
+  useEffect(() => {
+    if (!visibleTabs.some((item) => item.id === tab)) {
+      setTab(visibleTabs[0]?.id || "raps")
+    }
+  }, [permissions, tab, visibleTabs])
+
+  useEffect(() => {
+    const selectHeaderTab = (event: Event) => {
+      const requestedTab = (event as CustomEvent<string>).detail
+      if (visibleTabs.some((item) => item.id === requestedTab)) {
+        setTab(requestedTab as TabId)
+        setChartSelection(null)
+        setHighlightDashboard(null)
+      }
+    }
+    window.addEventListener("metalique:quality-tab", selectHeaderTab)
+    return () => window.removeEventListener("metalique:quality-tab", selectHeaderTab)
+  }, [permissions, visibleTabs])
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("metalique:quality-tab-changed", { detail: tab }))
+  }, [tab])
 
   useEffect(() => {
     getJson<QualityOptions>("/backend/api/quality/options.php")
@@ -234,14 +267,16 @@ export function QualityPage({ csrfToken }: { csrfToken: string }) {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" className="rounded-full" onClick={() => setOpenForm("dispatch")} disabled={!options}>
-            <PackagePlus /> Nova coleta
-          </Button>
-          <Button type="button" className="rounded-full" onClick={() => setOpenForm("rap")} disabled={!options}>
-            <ClipboardList /> Novo RAP
-          </Button>
-        </div>
+        {canManage && (
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" className="rounded-full" onClick={() => setOpenForm("dispatch")} disabled={!options}>
+              <PackagePlus /> Nova coleta
+            </Button>
+            <Button type="button" className="rounded-full" onClick={() => setOpenForm("rap")} disabled={!options}>
+              <ClipboardList /> Novo RAP
+            </Button>
+          </div>
+        )}
       </div>
 
       {notice && (
@@ -262,23 +297,25 @@ export function QualityPage({ csrfToken }: { csrfToken: string }) {
         />
       </div>
 
-      <nav className="mt-5 flex flex-wrap gap-2" aria-label="Seções da qualidade">
-        {TABS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={`rounded-full px-4 py-2 text-sm transition-colors ${tab === item.id ? "bg-[#db0f0f] text-white" : "bg-white text-[#52514e] hover:bg-neutral-50"}`}
-            aria-current={tab === item.id ? "page" : undefined}
-            onClick={() => {
-              setTab(item.id)
-              setChartSelection(null)
-              setHighlightDashboard(null)
-            }}
-          >
-            {item.label}
-          </button>
-        ))}
-      </nav>
+      {!tabsInHeader && (
+        <nav className="mt-5 flex flex-wrap gap-2" aria-label="Seções da qualidade">
+          {visibleTabs.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`rounded-full px-4 py-2 text-sm transition-colors ${tab === item.id ? "bg-[#db0f0f] text-white" : "bg-white text-[#52514e] hover:bg-neutral-50"}`}
+              aria-current={tab === item.id ? "page" : undefined}
+              onClick={() => {
+                setTab(item.id)
+                setChartSelection(null)
+                setHighlightDashboard(null)
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      )}
 
       <p className="mt-3 flex items-center gap-1.5 text-xs text-[#52514e]">
         <MousePointerClick className="size-3.5" aria-hidden="true" />
@@ -380,7 +417,7 @@ export function QualityPage({ csrfToken }: { csrfToken: string }) {
         )}
       </div>
 
-      {openForm === "rap" && options && (
+      {canManage && openForm === "rap" && options && (
         <RapForm
           csrfToken={csrfToken}
           options={options}
@@ -389,7 +426,7 @@ export function QualityPage({ csrfToken }: { csrfToken: string }) {
         />
       )}
 
-      {openForm === "dispatch" && options && (
+      {canManage && openForm === "dispatch" && options && (
         <DispatchForm
           csrfToken={csrfToken}
           options={options}

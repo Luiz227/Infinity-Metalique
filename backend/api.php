@@ -44,6 +44,18 @@ function requireApiUser(): array
     return $user;
 }
 
+/** Exige uma permissão no servidor; esconder o menu no React não é suficiente. */
+function requireApiPermission(string $permission): array
+{
+    $user = requireApiUser();
+
+    if (!userHasPermission($user, $permission)) {
+        jsonResponse(['message' => 'Você não tem permissão para realizar esta ação.'], 403);
+    }
+
+    return $user;
+}
+
 /** Interrompe a requisição quando o token CSRF do formulário não confere. */
 function requireCsrfToken(mixed $token): void
 {

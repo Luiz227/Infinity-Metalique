@@ -16,6 +16,102 @@ function normalizeEmail(string $email): string
     return strtolower(trim($email));
 }
 
+/** Permissões reconhecidas pelo sistema e exibidas na administração de contas. */
+function systemPermissions(): array
+{
+    return [
+        'dashboard.view' => [
+            'label' => 'Acessar Dashboard',
+            'description' => 'Visualizar a tela inicial do sistema.',
+        ],
+        'quality.view' => [
+            'label' => 'Visualizar Qualidade',
+            'description' => 'Consultar indicadores, registros e documentos da Qualidade.',
+        ],
+        'quality.manage' => [
+            'label' => 'Lançar dados da Qualidade',
+            'description' => 'Criar RAPs e registrar novas coletas.',
+        ],
+        'quality.raps' => [
+            'label' => 'RAPs',
+            'description' => 'Visualizar os indicadores de relatórios de ação preventiva.',
+        ],
+        'quality.units' => [
+            'label' => 'Unidades',
+            'description' => 'Visualizar indicadores por barracão e gate.',
+        ],
+        'quality.products' => [
+            'label' => 'Produtos',
+            'description' => 'Visualizar indicadores por máquina e modelo.',
+        ],
+        'quality.dispatches' => [
+            'label' => 'Produtos Coletados',
+            'description' => 'Consultar coletas e expedições registradas.',
+        ],
+        'quality.employees' => [
+            'label' => 'Colaboradores',
+            'description' => 'Visualizar os indicadores por colaborador.',
+        ],
+        'quality.satisfaction' => [
+            'label' => 'Qualidade',
+            'description' => 'Visualizar satisfação e reclamações de clientes.',
+        ],
+        'quality.records' => [
+            'label' => 'Registros',
+            'description' => 'Consultar a listagem de apontamentos registrados.',
+        ],
+        'users.manage' => [
+            'label' => 'Administrar usuários',
+            'description' => 'Criar contas e alterar cargos, status e permissões.',
+        ],
+    ];
+}
+
+function userPermissions(PDO $connection, int $userId, string $role): array
+{
+    if ($role === 'admin') {
+        return array_keys(systemPermissions());
+    }
+
+    $query = $connection->prepare(
+        'SELECT permission FROM user_permissions WHERE user_id = :user_id ORDER BY permission'
+    );
+    $query->execute(['user_id' => $userId]);
+
+    return array_values(array_intersect(
+        array_map('strval', $query->fetchAll(PDO::FETCH_COLUMN)),
+        array_keys(systemPermissions())
+    ));
+}
+
+/** Converte uma linha do banco no formato público compartilhado com o React. */
+function publicUser(array $user, PDO $connection): array
+{
+    $role = (string) ($user['role'] ?? 'user');
+
+    return [
+        'id' => (int) $user['id'],
+        'name' => (string) $user['name'],
+        'email' => (string) $user['email'],
+        'job_title' => (string) ($user['job_title'] ?? 'Colaborador'),
+        'role' => $role,
+        'is_primary_admin' => (bool) ($user['is_primary_admin'] ?? false),
+        'is_active' => (bool) ($user['is_active'] ?? true),
+        'profile_photo' => !empty($user['profile_photo']) ? (string) $user['profile_photo'] : null,
+        'permissions' => userPermissions($connection, (int) $user['id'], $role),
+    ];
+}
+
+function userHasPermission(?array $user, string $permission): bool
+{
+    if (!$user || empty($user['is_active'])) {
+        return false;
+    }
+
+    return ($user['role'] ?? '') === 'admin'
+        || in_array($permission, $user['permissions'] ?? [], true);
+}
+
 /** Valida e registra uma solicitação sem criar um usuário ativo. */
 function requestAccess(string $name, string $email, string $password): array
 {
@@ -72,8 +168,13 @@ function authenticateUser(string $email, string $password): bool
         return false;
     }
 
-    $query = database()->prepare(
-        'SELECT id, name, email, profile_photo, password_hash FROM users WHERE email = :email LIMIT 1'
+    $connection = database();
+    $query = $connection->prepare(
+        'SELECT id, name, email, job_title, role, is_primary_admin, is_active,
+                profile_photo, password_hash
+         FROM users
+         WHERE email = :email AND is_active = 1
+         LIMIT 1'
     );
     $query->execute(['email' => $email]);
     $user = $query->fetch();
@@ -85,12 +186,7 @@ function authenticateUser(string $email, string $password): bool
 
     // Trocar o ID depois do login impede a reutilização de uma sessão antiga.
     session_regenerate_id(true);
-    $_SESSION['user'] = [
-        'id' => (int) $user['id'],
-        'name' => (string) $user['name'],
-        'email' => (string) $user['email'],
-        'profile_photo' => $user['profile_photo'] ? (string) $user['profile_photo'] : null,
-    ];
+    $_SESSION['user'] = publicUser($user, $connection);
 
     return true;
 }
@@ -105,8 +201,10 @@ function currentUser(): ?array
     }
 
     try {
-        $query = database()->prepare(
-            'SELECT id, name, email, profile_photo FROM users WHERE id = :id LIMIT 1'
+        $connection = database();
+        $query = $connection->prepare(
+            'SELECT id, name, email, job_title, role, is_primary_admin, is_active, profile_photo
+             FROM users WHERE id = :id LIMIT 1'
         );
         $query->execute(['id' => (int) $user['id']]);
         $storedUser = $query->fetch();
@@ -114,17 +212,12 @@ function currentUser(): ?array
         return $user;
     }
 
-    if (!is_array($storedUser)) {
+    if (!is_array($storedUser) || empty($storedUser['is_active'])) {
         unset($_SESSION['user']);
         return null;
     }
 
-    $_SESSION['user'] = [
-        'id' => (int) $storedUser['id'],
-        'name' => (string) $storedUser['name'],
-        'email' => (string) $storedUser['email'],
-        'profile_photo' => $storedUser['profile_photo'] ? (string) $storedUser['profile_photo'] : null,
-    ];
+    $_SESSION['user'] = publicUser($storedUser, $connection);
 
     return $_SESSION['user'];
 }
@@ -133,10 +226,14 @@ function currentUser(): ?array
 function userSummary(int $avatarLimit = 3): array
 {
     $avatarLimit = max(1, min($avatarLimit, 3));
-    $total = (int) database()->query('SELECT COUNT(*) FROM users')->fetchColumn();
+    $total = (int) database()->query('SELECT COUNT(*) FROM users WHERE is_active = 1')->fetchColumn();
 
     $query = database()->prepare(
-        'SELECT id, name, profile_photo FROM users ORDER BY created_at DESC, id DESC LIMIT :limit'
+        'SELECT id, name, profile_photo
+         FROM users
+         WHERE is_active = 1
+         ORDER BY created_at DESC, id DESC
+         LIMIT :limit'
     );
     $query->bindValue('limit', $avatarLimit, PDO::PARAM_INT);
     $query->execute();

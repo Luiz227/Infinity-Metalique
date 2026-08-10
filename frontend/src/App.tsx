@@ -10,10 +10,33 @@ import { HomePage } from "@/pages/home/HomePage"
 import { LoginPage } from "@/pages/login/LoginPage"
 import { AccessRequestPage } from "@/pages/access-request/AccessRequestPage"
 import { QualityPage } from "@/pages/quality/QualityPage"
-import type { ApiResponse, User } from "@/types"
+import { UsersPage } from "@/pages/users/UsersPage"
+import type { ApiResponse, PermissionKey, User } from "@/types"
 
 /** Rotas que vivem dentro da moldura vermelha e exigem sessão. */
-const INTERNAL_ROUTES: Route[] = ["/sistema", "/qualidade"]
+const INTERNAL_ROUTES: Route[] = ["/sistema", "/qualidade", "/usuarios"]
+const ROUTE_PERMISSIONS: Partial<Record<Route, PermissionKey>> = {
+  "/sistema": "dashboard.view",
+  "/qualidade": "quality.view",
+  "/usuarios": "users.manage",
+}
+
+function canOpen(user: User, route: Route): boolean {
+  const permission = ROUTE_PERMISSIONS[route]
+  return !permission || !Array.isArray(user.permissions) || user.permissions.includes(permission)
+}
+
+function firstAllowedRoute(user: User): Route {
+  return INTERNAL_ROUTES.find((candidate) => canOpen(user, candidate)) || "/"
+}
+
+function isQualityOnlyAccount(user: User): boolean {
+  if (!Array.isArray(user.permissions)) return false
+  return user.role !== "admin"
+    && user.permissions.includes("quality.view")
+    && !user.permissions.includes("dashboard.view")
+    && !user.permissions.includes("users.manage")
+}
 
 function App() {
   const [route, setRoute] = useState<Route>(currentRoute())
@@ -50,6 +73,8 @@ function App() {
   useEffect(() => {
     if (!isLoading && INTERNAL_ROUTES.includes(route) && !user) {
       navigate("/login", true)
+    } else if (!isLoading && user && INTERNAL_ROUTES.includes(route) && !canOpen(user, route)) {
+      navigate(firstAllowedRoute(user), true)
     }
   }, [isLoading, route, user])
 
@@ -65,6 +90,7 @@ function App() {
       "/solicitar-acesso": "Solicitar acesso | Metalique Infinity",
       "/sistema": "Dashboard | Metalique Infinity",
       "/qualidade": "Qualidade | Metalique Infinity",
+      "/usuarios": "Usuários | Metalique Infinity",
     }
     document.title = titles[route]
   }, [route])
@@ -83,7 +109,7 @@ function App() {
         csrfToken={csrfToken}
         onAuthenticated={(authenticatedUser) => {
           setUser(authenticatedUser)
-          navigate("/sistema")
+          navigate(firstAllowedRoute(authenticatedUser))
         }}
       />
     )
@@ -120,7 +146,16 @@ function App() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
             >
-              {route === "/qualidade" ? <QualityPage csrfToken={csrfToken} /> : <DashboardPage />}
+              {route === "/qualidade" && (
+                <QualityPage
+                  csrfToken={csrfToken}
+                  permissions={user.permissions || []}
+                  canManage={!Array.isArray(user.permissions) || user.permissions.includes("quality.manage")}
+                  tabsInHeader={isQualityOnlyAccount(user)}
+                />
+              )}
+              {route === "/usuarios" && <UsersPage csrfToken={csrfToken} />}
+              {route === "/sistema" && <DashboardPage />}
             </motion.div>
           </AnimatePresence>
         </AppShell>

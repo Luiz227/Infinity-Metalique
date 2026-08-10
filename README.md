@@ -64,6 +64,16 @@ Criar as tabelas (uma vez):
 C:\xampp\mysql\bin\mysql.exe -u root --default-character-set=utf8mb4 < backend\database\quality.sql
 ```
 
+Para habilitar contas, cargos e permissões em uma instalação existente:
+
+```powershell
+C:\xampp\mysql\bin\mysql.exe -u root --default-character-set=utf8mb4 infinity_metalique < backend\database\permissions.sql
+```
+
+A conta `marketing@metalique.com.br` é marcada por essa migração como
+administradora principal. Ela possui acesso total e não pode ser desativada
+nem perder o papel de administradora pela interface.
+
 Importar a planilha `RELATÓRIO DE INSPEÇÃO.xlsm` para o banco:
 
 ```powershell

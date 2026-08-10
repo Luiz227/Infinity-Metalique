@@ -5,15 +5,26 @@ import { motion } from "motion/react"
 import { Button } from "@/components/ui/button"
 import { postJson, profilePhotoUrl, readJson } from "@/lib/api"
 import { AppLink, type Route, navigate } from "@/lib/router"
-import type { ApiResponse, User } from "@/types"
+import type { ApiResponse, PermissionKey, User } from "@/types"
 
 /** Itens da barra de navegação. Os que ainda não têm tela ficam como âncora. */
-const navigation: { label: string; to?: Route; anchor?: string }[] = [
-  { label: "Dashboard", to: "/sistema" },
-  { label: "Qualidade", to: "/qualidade" },
+const navigation: { label: string; to?: Route; anchor?: string; permission?: PermissionKey }[] = [
+  { label: "Dashboard", to: "/sistema", permission: "dashboard.view" },
+  { label: "Qualidade", to: "/qualidade", permission: "quality.view" },
+  { label: "Usuários", to: "/usuarios", permission: "users.manage" },
   { label: "Chamado", anchor: "#chamado" },
   { label: "KanBan", anchor: "#kanban" },
   { label: "Agenda", anchor: "#agenda" },
+]
+
+const qualityNavigation: { id: string; label: string; permission: PermissionKey }[] = [
+  { id: "raps", label: "RAPs", permission: "quality.raps" },
+  { id: "unidades", label: "Unidades", permission: "quality.units" },
+  { id: "produtos", label: "Produtos", permission: "quality.products" },
+  { id: "coletas", label: "Produtos Coletados", permission: "quality.dispatches" },
+  { id: "colaboradores", label: "Colaboradores", permission: "quality.employees" },
+  { id: "qualidade", label: "Qualidade", permission: "quality.satisfaction" },
+  { id: "registros", label: "Registros", permission: "quality.records" },
 ]
 
 /**
@@ -34,12 +45,37 @@ export function AppHeader({ user, csrfToken, active, onUserUpdated, onLogout }: 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [profileError, setProfileError] = useState("")
   const [isUploading, setIsUploading] = useState(false)
+  const [qualityTab, setQualityTab] = useState("raps")
   const [displayPhoto, setDisplayPhoto] = useState(() => profilePhotoUrl(user.profile_photo))
   const firstName = user.name.trim().split(/\s+/)[0] || "Usuário"
+  const isQualityAccount = active === "/qualidade"
+    && user.role !== "admin"
+    && Array.isArray(user.permissions)
+    && user.permissions.includes("quality.view")
+    && !user.permissions.includes("dashboard.view")
+    && !user.permissions.includes("users.manage")
+  const hasQualitySections = qualityNavigation.some((item) => user.permissions?.includes(item.permission))
+  const visibleQualityNavigation = hasQualitySections
+    ? qualityNavigation.filter((item) => user.permissions.includes(item.permission))
+    : qualityNavigation
+  const visibleNavigation = navigation.filter((item) => (
+    item.anchor
+      ? !user.role || user.role === "admin"
+      : !item.permission || !Array.isArray(user.permissions) || user.permissions.includes(item.permission)
+  ))
 
   useEffect(() => () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl)
   }, [previewUrl])
+
+  useEffect(() => {
+    const updateQualityTab = (event: Event) => {
+      const tab = (event as CustomEvent<string>).detail
+      if (typeof tab === "string") setQualityTab(tab)
+    }
+    window.addEventListener("metalique:quality-tab-changed", updateQualityTab)
+    return () => window.removeEventListener("metalique:quality-tab-changed", updateQualityTab)
+  }, [])
 
   const logout = async () => {
     setIsLoggingOut(true)
@@ -99,7 +135,30 @@ export function AppHeader({ user, csrfToken, active, onUserUpdated, onLogout }: 
           className="order-last col-span-2 flex max-w-full items-center gap-1 justify-self-center overflow-x-auto rounded-full bg-white p-1 text-[12px] font-light text-black sm:text-sm lg:order-none lg:col-span-1 lg:p-[6px] lg:text-[18px]"
           aria-label="Navegação principal"
         >
-          {navigation.map((item) => {
+          {isQualityAccount ? visibleQualityNavigation.map((item) => {
+            const isActive = item.id === qualityTab
+            return (
+              <button
+                key={item.id}
+                className="relative whitespace-nowrap rounded-full px-3 py-2 leading-none lg:px-4"
+                type="button"
+                aria-current={isActive ? "page" : undefined}
+                onClick={() => {
+                  setQualityTab(item.id)
+                  window.dispatchEvent(new CustomEvent("metalique:quality-tab", { detail: item.id }))
+                }}
+              >
+                {isActive && (
+                  <motion.span
+                    layoutId="nav-pill"
+                    className="absolute inset-0 rounded-full bg-[#db0f0f]"
+                    transition={{ type: "spring", stiffness: 380, damping: 32 }}
+                  />
+                )}
+                <span className={`relative z-10 ${isActive ? "text-white" : ""}`}>{item.label}</span>
+              </button>
+            )
+          }) : visibleNavigation.map((item) => {
             const isActive = item.to === active
             const className = "relative whitespace-nowrap rounded-full px-3 py-2 leading-none lg:px-4"
 
@@ -146,7 +205,7 @@ export function AppHeader({ user, csrfToken, active, onUserUpdated, onLogout }: 
           <div className="flex items-center gap-2 text-white lg:gap-[7px]">
             <div className="hidden leading-none sm:block">
               <p className="text-[16px] font-medium leading-none lg:text-[21px]">{firstName}</p>
-              <p className="mt-1 text-[10px] font-light leading-none">Cargo</p>
+              <p className="mt-1 max-w-32 truncate text-[10px] font-light leading-none" title={user.job_title || "Colaborador"}>{user.job_title || "Colaborador"}</p>
             </div>
             <button className="relative size-11 overflow-hidden rounded-full border border-white bg-black lg:size-[60px]" type="button" onClick={() => setIsProfileOpen(true)} aria-label="Alterar foto de perfil" title="Alterar foto de perfil">
               {displayPhoto ? (
