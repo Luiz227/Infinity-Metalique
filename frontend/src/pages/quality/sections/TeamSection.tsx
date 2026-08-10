@@ -1,23 +1,40 @@
 import { ChartCard } from "@/pages/quality/charts/ChartCard"
 import { RankingBars, TrendLine } from "@/pages/quality/charts/QualityCharts"
 import { StatTile } from "@/pages/quality/charts/StatTile"
-import type { QualityDashboard, QualityOptions } from "@/pages/quality/types"
+import type { QualityChartSelection, QualityDashboard, QualityOptions } from "@/pages/quality/types"
 
 /**
  * Desempenho individual. Um RAP pode ter até três colaboradores, então o eixo
  * conta participações, não apontamentos — é o que permite instrução dirigida
  * em vez de treinamento genérico.
  */
-export function TeamSection({ data, options, employeeId, onSelectEmployee }: {
+export function TeamSection({
+  data,
+  highlight,
+  selection,
+  options,
+  employeeId,
+  onSelectEmployee,
+  onSelectCode,
+  onSelectPeriod,
+}: {
   data: QualityDashboard
+  highlight: QualityDashboard | null
+  selection: QualityChartSelection | null
   options: QualityOptions | null
   employeeId: number | null
   onSelectEmployee: (id: number | null) => void
+  onSelectCode: (code: string) => void
+  onSelectPeriod: (period: string) => void
 }) {
   const participations = data.reportsByEmployee.reduce((sum, row) => sum + row.value, 0)
   const leading = data.reportsByEmployee[0]
   const leadingCode = data.reportsByCode[0]
   const selected = options?.employees.find((employee) => Number(employee.id) === employeeId)
+  const selectedCode = options?.codes.find((code) => Number(code.id) === selection?.filters.codeId)?.code ?? null
+  const selectedPeriod = selection?.filters.year && selection.filters.month
+    ? `${selection.filters.year}-${String(selection.filters.month).padStart(2, "0")}`
+    : null
 
   return (
     <div className="grid gap-4">
@@ -38,63 +55,60 @@ export function TeamSection({ data, options, employeeId, onSelectEmployee }: {
 
       <ChartCard
         title="Participações por colaborador"
-        description="Clique em um nome na lista abaixo para ver o código predominante daquela pessoa."
+        description="Clique em uma barra para destacar a participação daquele colaborador nos demais gráficos."
+        help="O eixo conta participações, não RAPs: um apontamento com três pessoas atribuídas conta uma vez para cada uma, então a soma das barras passa do total de RAPs. Quem trabalha mais horas aparece mais — o número serve para dirigir instrução, não para ranquear pessoas."
         table={{ head: ["Colaborador", "Participações"], rows: data.reportsByEmployee.map((row) => [row.label, row.value]) }}
       >
-        <RankingBars data={data.reportsByEmployee} height={Math.max(280, data.reportsByEmployee.length * 26)} labelWidth={230} />
+        <RankingBars
+          data={data.reportsByEmployee}
+          measure="participações"
+          highlightData={selection && highlight ? highlight.reportsByEmployee : null}
+          height={Math.max(280, data.reportsByEmployee.length * 26)}
+          labelWidth={230}
+          selectedLabel={selected?.name ?? null}
+          onSelect={(name) => {
+            const employee = options?.employees.find((item) => item.name === name)
+            if (employee) onSelectEmployee(Number(employee.id))
+          }}
+        />
       </ChartCard>
 
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartCard
           title={selected ? `Códigos de ${selected.name}` : "Códigos do conjunto filtrado"}
           description="Diz se o caso é falta de treinamento ou de atenção — e qual instrução dar."
+          help="Com um colaborador selecionado no gráfico acima, a parcela vermelha de cada barra é a participação dele naquele código, sobre o total apagado ao fundo. Códigos concentrados num só ponto indicam falta de treinamento específico; espalhados por todos, falta de atenção."
           table={{
             head: ["Código", "Descrição", "RAPs"],
             rows: data.reportsByCode.map((row) => [row.label, row.description ?? "", row.value]),
           }}
         >
-          <RankingBars data={data.reportsByCode} height={300} labelWidth={80} />
+          <RankingBars
+            data={data.reportsByCode}
+            measure="RAPs"
+            highlightData={selection && highlight ? highlight.reportsByCode : null}
+            height={300}
+            labelWidth={80}
+            selectedLabel={selectedCode}
+            onSelect={onSelectCode}
+          />
         </ChartCard>
 
         <ChartCard
           title="Evolução dos apontamentos"
           description="Acompanha se a orientação individual está surtindo efeito."
+          help="A linha vermelha é a participação do colaborador selecionado mês a mês, sobre a linha cinza do total. Depois de uma orientação, é aqui que se vê o efeito: a linha vermelha deve descer enquanto a cinza segue o próprio caminho."
           table={{ head: ["Mês", "RAPs"], rows: data.reportsByPeriod.map((row) => [row.label, row.value]) }}
         >
-          <TrendLine data={data.reportsByPeriod} />
+          <TrendLine
+            data={data.reportsByPeriod}
+            measure="RAPs"
+            highlightData={selection && highlight ? highlight.reportsByPeriod : null}
+            selectedPeriod={selectedPeriod}
+            onSelect={onSelectPeriod}
+          />
         </ChartCard>
       </div>
-
-      <section className="rounded-2xl bg-white p-5 shadow-[0_1px_2px_rgba(11,11,11,0.06)]">
-        <h3 className="text-[15px] font-semibold text-[#0b0b0b]">Analisar um colaborador</h3>
-        <p className="mt-1 text-xs text-[#52514e]">Filtra a view inteira pela pessoa escolhida.</p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            type="button"
-            className={`rounded-full border px-3 py-1.5 text-xs ${employeeId === null ? "border-[#db0f0f] bg-[#db0f0f] text-white" : "border-black/10 text-[#52514e] hover:bg-neutral-50"}`}
-            onClick={() => onSelectEmployee(null)}
-          >
-            Todos
-          </button>
-          {data.reportsByEmployee.map((row) => {
-            const employee = options?.employees.find((item) => item.name === row.label)
-            const id = employee ? Number(employee.id) : null
-            const isActive = id !== null && id === employeeId
-
-            return (
-              <button
-                key={row.label}
-                type="button"
-                disabled={id === null}
-                className={`rounded-full border px-3 py-1.5 text-xs ${isActive ? "border-[#db0f0f] bg-[#db0f0f] text-white" : "border-black/10 text-[#52514e] hover:bg-neutral-50"} disabled:opacity-40`}
-                onClick={() => onSelectEmployee(id)}
-              >
-                {row.label}
-              </button>
-            )
-          })}
-        </div>
-      </section>
     </div>
   )
 }

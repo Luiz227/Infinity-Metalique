@@ -1,6 +1,6 @@
 /** Tipos da view de qualidade, espelhando o que backend/api/quality devolve. */
 
-export type LabelValue = { label: string; value: number; description?: string }
+export type LabelValue = { label: string; value: number; description?: string | null }
 export type PeriodValue = { period: string; label: string; value: number }
 export type GateValue = PeriodValue & { gate: string }
 
@@ -70,6 +70,16 @@ export type QualityFilters = {
   machineTypeId: number | null
   employeeId: number | null
   clientId: number | null
+}
+
+/**
+ * Seleção temporária de um ponto do gráfico. Diferente da barra de filtros,
+ * ela preserva os totais e pede ao backend somente o subconjunto destacado.
+ */
+export type QualityChartSelection = {
+  key: string
+  label: string
+  filters: Partial<QualityFilters>
 }
 
 export const emptyFilters: QualityFilters = {

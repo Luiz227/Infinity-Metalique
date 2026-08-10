@@ -5,9 +5,17 @@
    ========================================================== */
 
 /* Recharts injeta um foco pontilhado ao clicar nas barras; o app usa anel próprio. */
-.recharts-wrapper:focus,
-.recharts-surface:focus {
-    outline: none;
+.quality-interactive-chart:focus,
+.quality-interactive-chart:focus-visible,
+.quality-interactive-chart .recharts-wrapper:focus,
+.quality-interactive-chart .recharts-wrapper:focus-visible,
+.quality-interactive-chart .recharts-surface:focus,
+.quality-interactive-chart .recharts-surface:focus-visible,
+.quality-interactive-chart .recharts-layer:focus,
+.quality-interactive-chart .recharts-layer:focus-visible,
+.quality-interactive-chart [tabindex]:focus,
+.quality-interactive-chart [tabindex]:focus-visible {
+    outline: none !important;
 }
 
 /* Rótulos do Recharts herdam a fonte do app em vez do padrão da biblioteca. */
@@ -15,18 +23,47 @@
     font-family: inherit;
 }
 
+/* Os visuais reproduzem o recorte cruzado do Power BI ao clicar em um ponto. */
+.quality-interactive-chart {
+    cursor: pointer;
+}
+
+.quality-interactive-chart .recharts-cartesian-axis,
+.quality-interactive-chart .recharts-legend-wrapper {
+    cursor: default;
+}
+
+/* A cópia repetida do rodapé existe apenas na mídia impressa. */
+.quality-print-signatures {
+    display: none;
+}
+
 /* ----------------------------------------------------------
    IMPRESSÃO
    A folha do RAP/coleta é o único conteúdo que vai ao papel.
    ---------------------------------------------------------- */
 @media print {
+    html,
+    body {
+        height: auto;
+        overflow: visible;
+    }
+
+    /* A folha é renderizada diretamente no body por portal. Remover o app da
+       paginação evita uma primeira folha vazia com a altura da interface. */
+    body > #root {
+        display: none;
+    }
+
     /* Esconde tudo e reexibe apenas a folha, que passa a ocupar a página. */
     body * {
         visibility: hidden;
     }
 
     .quality-print-sheet,
-    .quality-print-sheet * {
+    .quality-print-sheet *,
+    .quality-print-signatures,
+    .quality-print-signatures * {
         visibility: visible;
     }
 
@@ -42,8 +79,8 @@
     }
 
     .quality-print-sheet {
-        position: absolute;
-        inset: 0;
+        position: static;
+        display: block;
         width: 100%;
         max-width: none;
         padding: 0;
@@ -51,14 +88,55 @@
         box-shadow: none;
     }
 
-    /* Assinaturas e blocos não podem ser partidos entre duas folhas. */
-    .quality-print-sheet section,
-    .quality-print-sheet footer {
+    /* Mantém cabeçalho, campos e cada fotografia inteiros nas quebras. */
+    .quality-print-header,
+    .quality-print-row,
+    .quality-photo-item {
         break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    /* O navegador repete elementos fixos em cada folha impressa. A margem
+       inferior de @page abaixo reserva a área ocupada pelas assinaturas. */
+    .quality-screen-signatures {
+        display: none;
+    }
+
+    .quality-print-signatures {
+        position: fixed;
+        right: 0;
+        bottom: -23mm;
+        left: 0;
+        z-index: 10;
+        display: grid;
+        height: 21mm;
+        margin: 0;
+        padding-top: 2mm;
+        background: white;
+    }
+
+    .quality-print-signatures > div > div {
+        height: 8mm;
+    }
+
+    /* A versão impressa é um pouco mais compacta para um relatório que cabe
+       em uma folha não ganhar uma segunda página apenas por espaçamento. */
+    .quality-print-details {
+        margin-top: 4mm;
+        gap: 3mm 4mm;
+    }
+
+    .quality-photo-section {
+        margin-top: 4mm;
+    }
+
+    .quality-photo-grid {
+        margin-top: 2mm;
+        gap: 3mm;
     }
 
     @page {
         size: A4;
-        margin: 14mm;
+        margin: 12mm 12mm 34mm;
     }
 }

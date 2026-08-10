@@ -2,15 +2,23 @@ import { ChartCard } from "@/pages/quality/charts/ChartCard"
 import { DispatchVsComplaints } from "@/pages/quality/charts/QualityCharts"
 import { StatTile } from "@/pages/quality/charts/StatTile"
 import { formatDate, formatPercent } from "@/pages/quality/format"
-import type { QualityDashboard } from "@/pages/quality/types"
+import type { QualityChartSelection, QualityDashboard } from "@/pages/quality/types"
 
 /**
  * Taxa de satisfação: reclamações recebidas sobre o total de saídas no período.
  * O número é a resposta inteira, então ele aparece como valor e não como pizza
  * de duas fatias.
  */
-export function SatisfactionSection({ data }: { data: QualityDashboard }) {
+export function SatisfactionSection({ data, highlight, selection, onSelectPeriod }: {
+  data: QualityDashboard
+  highlight: QualityDashboard | null
+  selection: QualityChartSelection | null
+  onSelectPeriod: (period: string) => void
+}) {
   const { cards } = data
+  const selectedPeriod = selection?.filters.year && selection.filters.month
+    ? `${selection.filters.year}-${String(selection.filters.month).padStart(2, "0")}`
+    : null
 
   return (
     <div className="grid gap-4">
@@ -35,6 +43,7 @@ export function SatisfactionSection({ data }: { data: QualityDashboard }) {
       <ChartCard
         title="Coletas e reclamações por mês"
         description="As duas séries dividem o mesmo eixo por serem a mesma unidade — um registro."
+        help="A distância entre as duas colunas de cada mês é a taxa de satisfação daquele período: reclamação sobre coleta. Um eixo só, sem escala secundária, porque as duas séries contam a mesma coisa — registros. Clique numa coluna para recortar o mês na tabela abaixo."
         table={{
           head: ["Mês", "Coletas", "Reclamações"],
           rows: data.dispatchesByPeriod.map((row) => [
@@ -44,7 +53,14 @@ export function SatisfactionSection({ data }: { data: QualityDashboard }) {
           ]),
         }}
       >
-        <DispatchVsComplaints dispatches={data.dispatchesByPeriod} complaints={data.complaintsByPeriod} />
+        <DispatchVsComplaints
+          dispatches={data.dispatchesByPeriod}
+          complaints={data.complaintsByPeriod}
+          highlightDispatches={selection && highlight ? highlight.dispatchesByPeriod : null}
+          highlightComplaints={selection && highlight ? highlight.complaintsByPeriod : null}
+          selectedPeriod={selectedPeriod}
+          onSelect={onSelectPeriod}
+        />
       </ChartCard>
 
       <section className="rounded-2xl bg-white p-5 shadow-[0_1px_2px_rgba(11,11,11,0.06)]">

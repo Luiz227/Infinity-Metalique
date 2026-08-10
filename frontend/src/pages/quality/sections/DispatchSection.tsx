@@ -4,14 +4,35 @@ import { ChartCard } from "@/pages/quality/charts/ChartCard"
 import { RankingBars, TrendColumns } from "@/pages/quality/charts/QualityCharts"
 import { StatTile } from "@/pages/quality/charts/StatTile"
 import { formatDate } from "@/pages/quality/format"
-import type { DispatchRow, Paginated, QualityDashboard } from "@/pages/quality/types"
+import type { DispatchRow, Paginated, QualityChartSelection, QualityDashboard, QualityOptions } from "@/pages/quality/types"
 
 /** Expedição: volume de máquinas coletadas e qual produto puxa a saída. */
-export function DispatchSection({ data, dispatches, onPrint }: {
+export function DispatchSection({
+  data,
+  highlight,
+  selection,
+  dispatches,
+  options,
+  onPrint,
+  onSelectPeriod,
+  onSelectMachineType,
+  onSelectModel,
+}: {
   data: QualityDashboard
+  highlight: QualityDashboard | null
+  selection: QualityChartSelection | null
   dispatches: Paginated<DispatchRow> | null
+  options: QualityOptions | null
   onPrint: (id: number) => void
+  onSelectPeriod: (period: string) => void
+  onSelectMachineType: (machineType: string) => void
+  onSelectModel: (model: string) => void
 }) {
+  const selectedPeriod = selection?.filters.year && selection.filters.month
+    ? `${selection.filters.year}-${String(selection.filters.month).padStart(2, "0")}`
+    : null
+  const selectedMachine = options?.machineTypes.find((item) => Number(item.id) === selection?.filters.machineTypeId)?.name ?? null
+
   return (
     <div className="grid gap-4">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -24,26 +45,51 @@ export function DispatchSection({ data, dispatches, onPrint }: {
       <ChartCard
         title="Coletas por mês"
         description="Volume de máquinas expedidas — base para decidir produção e importação."
+        help="Cada coluna conta as máquinas que saíram no mês. É o denominador da taxa de satisfação na aba Qualidade: reclamação só significa alguma coisa comparada ao volume expedido no mesmo período. Clique numa coluna para recortar os demais gráficos por aquele mês."
         table={{ head: ["Mês", "Coletas"], rows: data.dispatchesByPeriod.map((row) => [row.label, row.value]) }}
       >
-        <TrendColumns data={data.dispatchesByPeriod} />
+        <TrendColumns
+          data={data.dispatchesByPeriod}
+          measure="coletas"
+          highlightData={selection && highlight ? highlight.dispatchesByPeriod : null}
+          selectedPeriod={selectedPeriod}
+          onSelect={onSelectPeriod}
+        />
       </ChartCard>
 
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartCard
           title="Coletas por tipo de máquina"
           description="Qual linha de produto mais sai."
+          help="Volume expedido por linha de produto. Cruze com “RAPs por tipo de máquina” na aba Produtos: a linha que mais sai naturalmente gera mais apontamento — o que pede ação é a que gera muito RAP e sai pouco."
           table={{ head: ["Máquina", "Coletas"], rows: data.dispatchesByMachineType.map((row) => [row.label, row.value]) }}
         >
-          <RankingBars data={data.dispatchesByMachineType} height={320} labelWidth={130} />
+          <RankingBars
+            data={data.dispatchesByMachineType}
+            measure="coletas"
+            highlightData={selection && highlight ? highlight.dispatchesByMachineType : null}
+            height={320}
+            labelWidth={130}
+            selectedLabel={selectedMachine}
+            onSelect={onSelectMachineType}
+          />
         </ChartCard>
 
         <ChartCard
           title="Coletas por modelo"
           description="Os 15 modelos mais expedidos no período filtrado."
+          help="Só os 15 primeiros colocados entram, para o eixo continuar legível. Serve de base de comparação para o ranking de RAPs por modelo: mesma ordem nos dois gráficos quer dizer que o apontamento acompanha o volume, e não o modelo."
           table={{ head: ["Modelo", "Coletas"], rows: data.dispatchesByModel.map((row) => [row.label, row.value]) }}
         >
-          <RankingBars data={data.dispatchesByModel} height={320} labelWidth={130} />
+          <RankingBars
+            data={data.dispatchesByModel}
+            measure="coletas"
+            highlightData={selection && highlight ? highlight.dispatchesByModel : null}
+            height={320}
+            labelWidth={130}
+            selectedLabel={(selection?.filters.model as string | undefined) ?? null}
+            onSelect={onSelectModel}
+          />
         </ChartCard>
       </div>
 

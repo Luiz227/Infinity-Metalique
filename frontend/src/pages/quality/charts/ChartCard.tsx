@@ -1,16 +1,41 @@
 import { type ReactNode, useState } from "react"
-import { BarChart3, Table2 } from "lucide-react"
+import { BarChart3, Info, Table2 } from "lucide-react"
 
 /** Tabela equivalente ao gráfico: todo valor continua acessível sem depender de cor. */
 export type ChartTable = { head: string[]; rows: (string | number)[][] }
 
 /**
+ * Explicação longa do visual, no (i) ao lado do título — como no Power BI, ela
+ * aparece ao passar o mouse e também no foco de teclado, para quem navega por Tab.
+ */
+function Help({ text }: { text: string }) {
+  return (
+    <span className="group relative inline-flex align-middle">
+      <button
+        type="button"
+        className="text-[#898781] outline-none transition-colors hover:text-[#0b0b0b] focus-visible:text-[#0b0b0b]"
+        aria-label="Sobre este gráfico"
+      >
+        <Info className="size-3.5" />
+      </button>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute left-1/2 top-6 z-50 hidden w-64 -translate-x-1/2 rounded-lg border border-black/10 bg-white p-3 text-xs font-normal leading-snug text-[#52514e] shadow-xl group-hover:block group-focus-within:block"
+      >
+        {text}
+      </span>
+    </span>
+  )
+}
+
+/**
  * Moldura branca de um gráfico: título, descrição e alternância gráfico/tabela.
  * A altura acompanha o conteúdo para que a faixa do eixo X nunca fique cortada.
  */
-export function ChartCard({ title, description, table, className = "", children }: {
+export function ChartCard({ title, description, help, table, className = "", children }: {
   title: string
   description?: string
+  help?: string
   table?: ChartTable
   className?: string
   children: ReactNode
@@ -21,7 +46,10 @@ export function ChartCard({ title, description, table, className = "", children 
     <section className={`flex flex-col rounded-2xl bg-white p-5 shadow-[0_1px_2px_rgba(11,11,11,0.06)] ${className}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-[15px] font-semibold leading-tight text-[#0b0b0b]">{title}</h3>
+          <h3 className="flex items-center gap-1.5 text-[15px] font-semibold leading-tight text-[#0b0b0b]">
+            {title}
+            {help && <Help text={help} />}
+          </h3>
           {description && <p className="mt-1 text-xs leading-snug text-[#52514e]">{description}</p>}
         </div>
 

@@ -1,5 +1,5 @@
-import { type ChangeEvent, type FormEvent, useEffect, useState } from "react"
-import { LoaderCircle, X } from "lucide-react"
+import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react"
+import { ImagePlus, LoaderCircle, Trash2, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
@@ -8,6 +8,12 @@ import { EmployeePicker, Field, SelectField, TextArea, TextInput } from "@/pages
 import type { QualityOptions } from "@/pages/quality/types"
 
 const today = () => new Date().toISOString().slice(0, 10)
+
+type SelectedPhoto = {
+  id: string
+  file: File
+  preview: string
+}
 
 /** Relatório de Produto Coletado (seção 5.2): exige no mínimo duas fotos do carregamento. */
 export function DispatchForm({ csrfToken, options, onClose, onCreated }: {
@@ -25,8 +31,8 @@ export function DispatchForm({ csrfToken, options, onClose, onCreated }: {
   const [needsFormUpdate, setNeedsFormUpdate] = useState(false)
   const [formChange, setFormChange] = useState("")
   const [immediateAction, setImmediateAction] = useState("")
-  const [photos, setPhotos] = useState<File[]>([])
-  const [previews, setPreviews] = useState<string[]>([])
+  const [photos, setPhotos] = useState<SelectedPhoto[]>([])
+  const photoUrls = useRef(new Set<string>())
   const [error, setError] = useState("")
   const [isSaving, setIsSaving] = useState(false)
 
@@ -34,13 +40,48 @@ export function DispatchForm({ csrfToken, options, onClose, onCreated }: {
     (item) => !machineTypeId || String(item.machineTypeId) === machineTypeId,
   )
 
-  useEffect(() => () => previews.forEach((url) => URL.revokeObjectURL(url)), [previews])
+  // As URLs locais existem apenas enquanto o formulário estiver aberto.
+  useEffect(() => () => {
+    photoUrls.current.forEach((url) => URL.revokeObjectURL(url))
+    photoUrls.current.clear()
+  }, [])
 
-  const selectPhotos = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []).slice(0, 6)
-    previews.forEach((url) => URL.revokeObjectURL(url))
-    setPhotos(files)
-    setPreviews(files.map((file) => URL.createObjectURL(file)))
+  const selectPhoto = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    // Permite escolher novamente o mesmo arquivo depois de removê-lo.
+    event.target.value = ""
+
+    if (!file) return
+    if (photos.length >= 6) {
+      setError("Envie no máximo seis fotos por coleta.")
+      return
+    }
+
+    const alreadyAdded = photos.some((item) => (
+      item.file.name === file.name
+      && item.file.size === file.size
+      && item.file.lastModified === file.lastModified
+    ))
+    if (alreadyAdded) {
+      setError("Essa foto já foi adicionada.")
+      return
+    }
+
+    const preview = URL.createObjectURL(file)
+    photoUrls.current.add(preview)
+    setPhotos((current) => [...current, { id: crypto.randomUUID(), file, preview }])
+    setError("")
+  }
+
+  const removePhoto = (id: string) => {
+    setPhotos((current) => {
+      const removed = current.find((item) => item.id === id)
+      if (removed) {
+        URL.revokeObjectURL(removed.preview)
+        photoUrls.current.delete(removed.preview)
+      }
+      return current.filter((item) => item.id !== id)
+    })
     setError("")
   }
 
@@ -69,7 +110,7 @@ export function DispatchForm({ csrfToken, options, onClose, onCreated }: {
     for (const id of employeeIds) {
       if (id !== null) body.append("employeeIds[]", String(id))
     }
-    for (const photo of photos) body.append("photos[]", photo)
+    for (const photo of photos) body.append("photos[]", photo.file)
 
     try {
       const response = await fetch("/backend/api/quality/dispatch-create.php", {
@@ -151,20 +192,32 @@ export function DispatchForm({ csrfToken, options, onClose, onCreated }: {
           </div>
 
           <div className="sm:col-span-2">
-            <Field label="Fotos do carregamento" required hint="Mínimo de duas, máximo de seis. JPG, PNG ou WebP de até 5 MB cada.">
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                multiple
-                onChange={selectPhotos}
-                className="text-sm text-[#52514e] file:mr-3 file:rounded-full file:border file:border-[#db0f0f] file:bg-white file:px-4 file:py-2 file:text-sm file:font-semibold file:text-[#db0f0f]"
-              />
+            <Field label="Fotos do carregamento" required hint="Adicione uma por vez. Mínimo de duas, máximo de seis; até 5 MB cada.">
+              <label className={`inline-flex items-center gap-2 rounded-full border border-[#db0f0f] px-4 py-2 text-sm font-semibold text-[#db0f0f] ${photos.length >= 6 ? "cursor-not-allowed opacity-40" : "cursor-pointer hover:bg-red-50"}`}>
+                <ImagePlus className="size-4" aria-hidden="true" />
+                {photos.length >= 6 ? "Limite atingido" : "Adicionar uma foto"}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={selectPhoto}
+                  disabled={photos.length >= 6}
+                  className="sr-only"
+                />
+              </label>
             </Field>
-            {previews.length > 0 && (
+            {photos.length > 0 && (
               <ul className="mt-3 flex flex-wrap gap-2">
-                {previews.map((url, index) => (
-                  <li key={url} className="size-20 overflow-hidden rounded-lg border border-black/10">
-                    <img src={url} alt={`Prévia ${index + 1}`} className="size-full object-cover" />
+                {photos.map((photo, index) => (
+                  <li key={photo.id} className="group relative size-20 overflow-hidden rounded-lg border border-black/10">
+                    <img src={photo.preview} alt={`Prévia ${index + 1}`} className="size-full object-cover" />
+                    <button
+                      type="button"
+                      className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-black/70 text-white shadow hover:bg-black"
+                      onClick={() => removePhoto(photo.id)}
+                      aria-label={`Remover foto ${index + 1}`}
+                    >
+                      <Trash2 className="size-3.5" aria-hidden="true" />
+                    </button>
                   </li>
                 ))}
               </ul>

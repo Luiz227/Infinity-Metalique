@@ -12,6 +12,23 @@ export function formatDate(value: string | null): string {
   return dateFormatter.format(new Date(year, month - 1, day))
 }
 
+const MONTH_NAMES = [
+  "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+  "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+]
+
+/**
+ * "2026-07" vira "julho de 2026". O eixo do gráfico precisa do rótulo curto
+ * ("jul/26") para caber; o tooltip mostra o mês por extenso.
+ */
+export function formatPeriod(period: string): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(period)
+  if (!match) return ""
+
+  const month = MONTH_NAMES[Number(match[2]) - 1]
+  return month ? `${month} de ${match[1]}` : ""
+}
+
 /** Percentual com uma casa, no padrão brasileiro. */
 export function formatPercent(value: number | null): string {
   if (value === null) return "—"
