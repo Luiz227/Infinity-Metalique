@@ -1,9 +1,12 @@
-import { type ChangeEvent, type FormEvent, useEffect, useState } from "react"
-import { Bell, Camera, ChevronDown, LoaderCircle, Search, UserRound, X } from "lucide-react"
+import { useEffect, useState } from "react"
+import { ChevronDown, LoaderCircle, LogOut, UserRound } from "lucide-react"
 import { motion } from "motion/react"
 
-import { Button } from "@/components/ui/button"
-import { postJson, profilePhotoUrl, readJson } from "@/lib/api"
+import { HeaderSearch } from "@/components/layout/HeaderSearch"
+import { NotificationsMenu } from "@/components/layout/NotificationsMenu"
+import { ProfileDialog } from "@/components/layout/ProfileDialog"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { postJson, profilePhotoUrl } from "@/lib/api"
 import { AppLink, type Route, navigate } from "@/lib/router"
 import type { ApiResponse, PermissionKey, User } from "@/types"
 
@@ -12,9 +15,6 @@ const navigation: { label: string; to?: Route; anchor?: string; permission?: Per
   { label: "Dashboard", to: "/sistema", permission: "dashboard.view" },
   { label: "Qualidade", to: "/qualidade", permission: "quality.view" },
   { label: "Usuários", to: "/usuarios", permission: "users.manage" },
-  { label: "Chamado", anchor: "#chamado" },
-  { label: "KanBan", anchor: "#kanban" },
-  { label: "Agenda", anchor: "#agenda" },
 ]
 
 const qualityNavigation: { id: string; label: string; permission: PermissionKey }[] = [
@@ -41,32 +41,37 @@ export function AppHeader({ user, csrfToken, active, onUserUpdated, onLogout }: 
 }) {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
-  const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [profileError, setProfileError] = useState("")
-  const [isUploading, setIsUploading] = useState(false)
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
+  const [isCompactHeader, setIsCompactHeader] = useState(() => window.matchMedia("(max-width: 1023px)").matches)
   const [qualityTab, setQualityTab] = useState("raps")
   const [displayPhoto, setDisplayPhoto] = useState(() => profilePhotoUrl(user.profile_photo))
-  const firstName = user.name.trim().split(/\s+/)[0] || "Usuário"
+  const displayName = user.nickname || user.name.trim().split(/\s+/)[0] || "Usuário"
   const isQualityAccount = active === "/qualidade"
     && user.role !== "admin"
     && Array.isArray(user.permissions)
     && user.permissions.includes("quality.view")
     && !user.permissions.includes("dashboard.view")
     && !user.permissions.includes("users.manage")
-  const hasQualitySections = qualityNavigation.some((item) => user.permissions?.includes(item.permission))
-  const visibleQualityNavigation = hasQualitySections
-    ? qualityNavigation.filter((item) => user.permissions.includes(item.permission))
-    : qualityNavigation
+  const visibleQualityNavigation = qualityNavigation.filter((item) => user.permissions.includes(item.permission))
+  const canCreateRap = user.role === "admin" || user.permissions.includes("quality.create_rap")
+  const canCreateDispatch = user.role === "admin" || user.permissions.includes("quality.create_dispatch")
+  const isActionOnlyQualityAccount = active === "/qualidade"
+    && visibleQualityNavigation.length === 0
+    && (canCreateRap || canCreateDispatch)
   const visibleNavigation = navigation.filter((item) => (
     item.anchor
       ? !user.role || user.role === "admin"
       : !item.permission || !Array.isArray(user.permissions) || user.permissions.includes(item.permission)
   ))
 
-  useEffect(() => () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl)
-  }, [previewUrl])
+  useEffect(() => setDisplayPhoto(profilePhotoUrl(user.profile_photo)), [user.profile_photo])
+
+  useEffect(() => {
+    const compactHeaderQuery = window.matchMedia("(max-width: 1023px)")
+    const updateHeaderMode = () => setIsCompactHeader(compactHeaderQuery.matches)
+    compactHeaderQuery.addEventListener("change", updateHeaderMode)
+    return () => compactHeaderQuery.removeEventListener("change", updateHeaderMode)
+  }, [])
 
   useEffect(() => {
     const updateQualityTab = (event: Event) => {
@@ -84,40 +89,6 @@ export function AppHeader({ user, csrfToken, active, onUserUpdated, onLogout }: 
       onLogout()
     } finally {
       setIsLoggingOut(false)
-    }
-  }
-
-  const selectPhoto = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0] || null
-    setSelectedPhoto(file)
-    setProfileError("")
-    setPreviewUrl(file ? URL.createObjectURL(file) : null)
-  }
-
-  const uploadPhoto = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (!selectedPhoto) return
-    setIsUploading(true)
-    setProfileError("")
-
-    const formData = new FormData()
-    formData.append("csrfToken", csrfToken)
-    formData.append("profilePhoto", selectedPhoto)
-
-    try {
-      const response = await fetch("/backend/api/profile-photo.php", { method: "POST", credentials: "include", body: formData })
-      const payload = await readJson<ApiResponse>(response)
-      if (payload.user) {
-        setDisplayPhoto(profilePhotoUrl(payload.user.profile_photo))
-        onUserUpdated(payload.user)
-      }
-      setIsProfileOpen(false)
-      setSelectedPhoto(null)
-      setPreviewUrl(null)
-    } catch (requestError) {
-      setProfileError(requestError instanceof Error ? requestError.message : "Erro inesperado.")
-    } finally {
-      setIsUploading(false)
     }
   }
 
@@ -196,18 +167,37 @@ export function AppHeader({ user, csrfToken, active, onUserUpdated, onLogout }: 
               <a key={item.label} className={className} href={item.anchor}>{content}</a>
             )
           })}
+
+          {isActionOnlyQualityAccount && canCreateDispatch && (
+            <button
+              className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[#db0f0f] px-3 py-2 font-normal leading-none text-[#db0f0f] lg:px-4"
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("metalique:quality-open-form", { detail: "dispatch" }))}
+            >
+              <span>Nova coleta</span>
+            </button>
+          )}
+          {isActionOnlyQualityAccount && canCreateRap && (
+            <button
+              className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-[#db0f0f] px-3 py-2 font-normal leading-none text-white lg:px-4"
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("metalique:quality-open-form", { detail: "rap" }))}
+            >
+              <span>Novo RAP</span>
+            </button>
+          )}
         </nav>
 
         <div className="flex shrink-0 items-center gap-2 justify-self-end sm:gap-3 lg:gap-[18px]">
-          <Button className="size-8 rounded-full bg-white p-0 text-black hover:bg-white/90 lg:size-[38px]" type="button" aria-label="Buscar" title="Buscar"><Search className="size-4 lg:size-5" /></Button>
-          <Button className="size-8 rounded-full bg-white p-0 text-black hover:bg-white/90 lg:size-[38px]" type="button" aria-label="Notificações" title="Notificações"><Bell className="size-4 lg:size-5" /></Button>
+          <HeaderSearch user={user} />
+          <NotificationsMenu user={user} csrfToken={csrfToken} />
 
           <div className="flex items-center gap-2 text-white lg:gap-[7px]">
             <div className="hidden leading-none sm:block">
-              <p className="text-[16px] font-medium leading-none lg:text-[21px]">{firstName}</p>
+              <p className="text-[16px] font-medium leading-none lg:text-[21px]">{displayName}</p>
               <p className="mt-1 max-w-32 truncate text-[10px] font-light leading-none" title={user.job_title || "Colaborador"}>{user.job_title || "Colaborador"}</p>
             </div>
-            <button className="relative size-11 overflow-hidden rounded-full border border-white bg-black lg:size-[60px]" type="button" onClick={() => setIsProfileOpen(true)} aria-label="Alterar foto de perfil" title="Alterar foto de perfil">
+            <button className="relative size-11 overflow-hidden rounded-full border border-white bg-black lg:size-[60px]" type="button" onClick={() => setIsProfileOpen(true)} aria-label="Abrir perfil" title="Abrir perfil">
               {displayPhoto ? (
                 <img
                   className="size-full object-cover"
@@ -221,38 +211,34 @@ export function AppHeader({ user, csrfToken, active, onUserUpdated, onLogout }: 
                 </span>
               )}
             </button>
-            <button className="hidden text-white sm:grid" type="button" onClick={() => void logout()} disabled={isLoggingOut} aria-label="Sair" title="Sair">
-              {isLoggingOut ? <LoaderCircle className="size-4 animate-spin" /> : <ChevronDown className="size-4" />}
-            </button>
+            <Popover open={isAccountMenuOpen} onOpenChange={setIsAccountMenuOpen}>
+              <PopoverTrigger asChild>
+                <button className="grid text-white" type="button" disabled={isLoggingOut} aria-label="Abrir menu da conta" title="Menu da conta">
+                  {isLoggingOut ? <LoaderCircle className="size-4 animate-spin" /> : <ChevronDown className={`size-4 transition-transform ${isAccountMenuOpen ? "rotate-180" : ""}`} />}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="end"
+                sideOffset={isCompactHeader ? 76 : 12}
+                avoidCollisions={!isCompactHeader}
+                className="w-52 p-1.5"
+              >
+                <button className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm hover:bg-neutral-100" type="button" onClick={() => { setIsAccountMenuOpen(false); setIsProfileOpen(true) }}><UserRound className="size-4 text-[#db0f0f]" /> Perfil</button>
+                <div className="my-1 border-t border-black/10" />
+                <button className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm text-[#db0f0f] hover:bg-red-50" type="button" onClick={() => void logout()} disabled={isLoggingOut}><LogOut className="size-4" /> Sair do sistema</button>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
       </header>
 
-      {isProfileOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-labelledby="profile-dialog-title">
-          <section className="w-full max-w-md rounded-lg bg-white p-6 text-neutral-900 shadow-2xl">
-            <div className="flex items-center justify-between gap-4">
-              <h2 id="profile-dialog-title" className="text-xl font-semibold">Foto de perfil</h2>
-              <Button variant="ghost" size="icon" type="button" onClick={() => setIsProfileOpen(false)} aria-label="Fechar"><X /></Button>
-            </div>
-            <form className="mt-6 space-y-5" onSubmit={uploadPhoto}>
-              <div className="mx-auto size-32 overflow-hidden rounded-full border-2 border-[#db0f0f] bg-neutral-100">
-                {(previewUrl || displayPhoto) ? <img className="size-full object-cover" src={previewUrl || displayPhoto || ""} alt="Prévia da foto" /> : <span className="grid size-full place-items-center"><Camera className="size-9 text-neutral-400" /></span>}
-              </div>
-              {profileError && <p className="rounded-md bg-red-50 p-3 text-sm text-red-700" role="alert">{profileError}</p>}
-              <label className="block cursor-pointer rounded-md border border-[#db0f0f] px-4 py-3 text-center text-sm font-semibold text-[#db0f0f] hover:bg-red-50">
-                Escolher imagem
-                <input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" onChange={selectPhoto} />
-              </label>
-              <p className="text-center text-xs text-neutral-500">JPG, PNG ou WebP de até 5 MB.</p>
-              <Button className="w-full rounded-full" type="submit" disabled={!selectedPhoto || isUploading}>
-                {isUploading && <LoaderCircle className="animate-spin" />}
-                {isUploading ? "Atualizando..." : "Atualizar foto"}
-              </Button>
-            </form>
-          </section>
-        </div>
-      )}
+      <ProfileDialog
+        open={isProfileOpen}
+        onOpenChange={setIsProfileOpen}
+        user={user}
+        csrfToken={csrfToken}
+        onUserUpdated={onUserUpdated}
+      />
     </>
   )
 }

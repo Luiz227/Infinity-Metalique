@@ -1,7 +1,7 @@
 /* Carrega cores, reset e estrutura compartilhada pelo sistema. */
 
 /* ==========================================================
-   PÁGINA INICIAL — PROPORÇÕES DO FRAME 1788 × 1005,75
+   PÁGINA INICIAL - PROPORÇÕES DO FRAME 1788 × 1005,75
    As porcentagens abaixo foram calculadas a partir do Figma.
    ========================================================== */
 .home-frame {
@@ -245,6 +245,19 @@ button.solid-button {
     font-weight: 300;
     line-height: 0.95;
     letter-spacing: -0.05em;
+}
+
+.hero-copy.development-copy {
+    top: 22%;
+}
+
+.hero-copy.development-copy h1 {
+    font-size: clamp(34px, 4vw, 72px);
+}
+
+.hero-copy.development-copy p {
+    width: 100%;
+    font-size: clamp(18px, 2vw, 34px);
 }
 
 /* Três vetores separados reproduzem as linhas inferiores do frame. */

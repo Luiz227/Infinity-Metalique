@@ -1,7 +1,8 @@
 import { type FormEvent, useCallback, useEffect, useState } from "react"
-import { Check, Eye, EyeOff, LoaderCircle, Pencil, Plus, ShieldCheck, UserRound, X } from "lucide-react"
+import { AlertTriangle, Check, Eye, EyeOff, LoaderCircle, Pencil, Plus, ShieldCheck, Trash2, UserRound, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { getJson, postJson, profilePhotoUrl } from "@/lib/api"
 import type { PermissionKey } from "@/types"
 
@@ -10,9 +11,11 @@ type ManagedUser = {
   name: string
   email: string
   job_title: string
+  sector: string
   role: "admin" | "user"
   is_primary_admin: boolean
   is_active: boolean
+  must_change_password: boolean
   profile_photo: string | null
   created_at: string
   permissions: PermissionKey[]
@@ -20,6 +23,8 @@ type ManagedUser = {
 
 type PermissionDefinition = {
   key: PermissionKey
+  group: string
+  assignable?: boolean
   label: string
   description: string
 }
@@ -34,6 +39,7 @@ type UserForm = {
   name: string
   email: string
   jobTitle: string
+  sector: string
   role: "admin" | "user"
   password: string
   isActive: boolean
@@ -45,6 +51,7 @@ const emptyForm: UserForm = {
   name: "",
   email: "",
   jobTitle: "",
+  sector: "",
   role: "user",
   password: "",
   isActive: true,
@@ -61,6 +68,12 @@ const QUALITY_SECTION_KEYS: PermissionKey[] = [
   "quality.records",
 ]
 
+const QUALITY_ACTION_KEYS: PermissionKey[] = [
+  "quality.manage",
+  "quality.create_rap",
+  "quality.create_dispatch",
+]
+
 function initials(name: string): string {
   return name
     .trim()
@@ -70,13 +83,15 @@ function initials(name: string): string {
     .join("")
 }
 
-export function UsersPage({ csrfToken }: { csrfToken: string }) {
+export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; currentUserId: number }) {
   const [users, setUsers] = useState<ManagedUser[]>([])
   const [permissionDefinitions, setPermissionDefinitions] = useState<PermissionDefinition[]>([])
   const [form, setForm] = useState<UserForm | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [userToDelete, setUserToDelete] = useState<ManagedUser | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState("")
   const [notice, setNotice] = useState("")
 
@@ -105,6 +120,7 @@ export function UsersPage({ csrfToken }: { csrfToken: string }) {
       name: user.name,
       email: user.email,
       jobTitle: user.job_title,
+      sector: user.sector,
       role: user.role,
       password: "",
       isActive: user.is_active,
@@ -121,22 +137,20 @@ export function UsersPage({ csrfToken }: { csrfToken: string }) {
       if (selected) {
         next.delete(permission)
         if (permission === "quality.view") {
-          next.delete("quality.manage")
+          QUALITY_ACTION_KEYS.forEach((item) => next.delete(item))
           QUALITY_SECTION_KEYS.forEach((item) => next.delete(item))
+        }
+        if (!QUALITY_SECTION_KEYS.some((item) => next.has(item))
+            && !QUALITY_ACTION_KEYS.some((item) => next.has(item))) {
+          next.delete("quality.view")
         }
       } else {
         next.add(permission)
-        if (permission === "quality.view") {
-          QUALITY_SECTION_KEYS.forEach((item) => next.add(item))
-        }
         if (QUALITY_SECTION_KEYS.includes(permission)) {
           next.add("quality.view")
         }
-        if (permission === "quality.manage") {
+        if (QUALITY_ACTION_KEYS.includes(permission)) {
           next.add("quality.view")
-          next.add("quality.raps")
-          next.add("quality.dispatches")
-          next.add("quality.records")
         }
       }
 
@@ -168,11 +182,35 @@ export function UsersPage({ csrfToken }: { csrfToken: string }) {
     }
   }
 
-  const mainPermissionDefinitions = permissionDefinitions.filter(
-    (permission) => !QUALITY_SECTION_KEYS.includes(permission.key)
-  )
-  const qualityPermissionDefinitions = permissionDefinitions.filter(
-    (permission) => QUALITY_SECTION_KEYS.includes(permission.key)
+  const deleteUser = async () => {
+    if (!userToDelete) return
+    setIsDeleting(true)
+    setError("")
+    try {
+      const payload = await postJson<{ message: string }>("/backend/api/admin/user-delete.php", {
+        csrfToken,
+        id: userToDelete.id,
+      })
+      setNotice(payload.message)
+      setUserToDelete(null)
+      await loadUsers()
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Não foi possível excluir a conta.")
+      setUserToDelete(null)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const permissionGroups = permissionDefinitions
+    .filter((permission) => permission.assignable !== false)
+    .reduce<Record<string, PermissionDefinition[]>>((groups, permission) => {
+      const group = permission.group || "Geral"
+      groups[group] = [...(groups[group] || []), permission]
+      return groups
+    }, {})
+  const assignablePermissionKeys = new Set(
+    permissionDefinitions.filter((permission) => permission.assignable !== false).map((permission) => permission.key)
   )
 
   return (
@@ -200,15 +238,16 @@ export function UsersPage({ csrfToken }: { csrfToken: string }) {
           <div className="grid h-56 place-items-center text-[#898781]"><LoaderCircle className="size-7 animate-spin" aria-label="Carregando usuários" /></div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] border-collapse text-left text-sm">
+            <table className="w-full min-w-[920px] border-collapse text-left text-sm">
               <thead className="border-b border-black/10 bg-[#f7f7f6] text-xs uppercase text-[#6e6c67]">
                 <tr>
                   <th className="px-5 py-4 font-medium">Usuário</th>
                   <th className="px-5 py-4 font-medium">Cargo</th>
+                  <th className="px-5 py-4 font-medium">Setor</th>
                   <th className="px-5 py-4 font-medium">Tipo</th>
                   <th className="px-5 py-4 font-medium">Permissões</th>
                   <th className="px-5 py-4 font-medium">Status</th>
-                  <th className="w-16 px-5 py-4"><span className="sr-only">Ações</span></th>
+                  <th className="w-28 px-5 py-4"><span className="sr-only">Ações</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-black/10">
@@ -228,6 +267,7 @@ export function UsersPage({ csrfToken }: { csrfToken: string }) {
                         </div>
                       </td>
                       <td className="px-5 py-4 text-[#52514e]">{user.job_title}</td>
+                      <td className="px-5 py-4 text-[#52514e]">{user.sector}</td>
                       <td className="px-5 py-4">
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium">
                           {user.role === "admin" && <ShieldCheck className="size-3.5 text-[#db0f0f]" />}
@@ -235,16 +275,28 @@ export function UsersPage({ csrfToken }: { csrfToken: string }) {
                         </span>
                       </td>
                       <td className="max-w-64 px-5 py-4 text-xs text-[#52514e]">
-                        {user.role === "admin" ? "Acesso total" : `${user.permissions.length} de ${permissionDefinitions.length} permissões`}
+                        {user.role === "admin" ? "Acesso total" : `${user.permissions.filter((permission) => assignablePermissionKeys.has(permission)).length} de ${assignablePermissionKeys.size} permissões`}
                       </td>
                       <td className="px-5 py-4">
-                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${user.is_active ? "bg-green-50 text-green-700" : "bg-neutral-100 text-neutral-500"}`}>
-                          {user.is_active ? "Ativo" : "Inativo"}
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${!user.is_active ? "bg-neutral-100 text-neutral-500" : user.must_change_password ? "bg-amber-50 text-amber-700" : "bg-green-50 text-green-700"}`}>
+                          {!user.is_active ? "Inativo" : user.must_change_password ? "Primeiro acesso" : "Ativo"}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-right">
+                      <td className="whitespace-nowrap px-5 py-4 text-right">
                         <Button variant="ghost" size="icon" type="button" disabled={user.is_primary_admin} onClick={() => editUser(user)} aria-label={`Editar ${user.name}`} title={user.is_primary_admin ? "Conta principal protegida" : "Editar usuário"}>
                           <Pencil className="size-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                          type="button"
+                          disabled={user.is_primary_admin || user.id === currentUserId}
+                          onClick={() => setUserToDelete(user)}
+                          aria-label={`Excluir ${user.name}`}
+                          title={user.is_primary_admin ? "Conta principal protegida" : user.id === currentUserId ? "Você não pode excluir sua própria conta" : "Excluir conta"}
+                        >
+                          <Trash2 className="size-4" />
                         </Button>
                       </td>
                     </tr>
@@ -277,6 +329,9 @@ export function UsersPage({ csrfToken }: { csrfToken: string }) {
                 <label className="text-sm font-medium">Cargo
                   <input className="mt-1.5 h-11 w-full rounded-md border border-black/20 px-3 outline-none focus:border-[#db0f0f]" value={form.jobTitle} onChange={(event) => setForm({ ...form, jobTitle: event.target.value })} required maxLength={100} />
                 </label>
+                <label className="text-sm font-medium">Setor principal
+                  <input className="mt-1.5 h-11 w-full rounded-md border border-black/20 px-3 outline-none focus:border-[#db0f0f]" value={form.sector} onChange={(event) => setForm({ ...form, sector: event.target.value })} required maxLength={120} placeholder="Ex.: Produção" />
+                </label>
                 <label className="text-sm font-medium">E-mail
                   <input className="mt-1.5 h-11 w-full rounded-md border border-black/20 px-3 outline-none focus:border-[#db0f0f]" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required maxLength={254} />
                 </label>
@@ -293,6 +348,7 @@ export function UsersPage({ csrfToken }: { csrfToken: string }) {
                       {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                     </button>
                   </div>
+                  <span className="mt-1.5 block text-xs font-normal text-[#6e6c67]">Mínimo de 8 caracteres, com número e caractere especial.</span>
                 </label>
               </div>
 
@@ -301,27 +357,12 @@ export function UsersPage({ csrfToken }: { csrfToken: string }) {
                   <h3 className="font-semibold">Permissões</h3>
                   {form.role === "admin" && <span className="text-xs font-medium text-[#db0f0f]">Acesso total</span>}
                 </div>
-                <div className="mt-3 divide-y divide-black/10 rounded-md border border-black/10">
-                  {mainPermissionDefinitions.map((permission) => {
-                    const checked = form.role === "admin" || form.permissions.includes(permission.key)
-                    return (
-                      <label key={permission.key} className={`flex items-start gap-3 p-4 ${form.role === "admin" ? "cursor-not-allowed bg-neutral-50" : "cursor-pointer hover:bg-neutral-50"}`}>
-                        <input className="mt-0.5 size-4 accent-[#db0f0f]" type="checkbox" checked={checked} disabled={form.role === "admin"} onChange={() => togglePermission(permission.key)} />
-                        <span>
-                          <span className="block text-sm font-medium">{permission.label}</span>
-                          <span className="mt-0.5 block text-xs text-[#6e6c67]">{permission.description}</span>
-                        </span>
-                      </label>
-                    )
-                  })}
-                </div>
-
-                {(form.role === "admin" || form.permissions.includes("quality.view")) && (
-                  <div className="mt-5">
-                    <h4 className="text-sm font-semibold">Menu da conta de Qualidade</h4>
-                    <p className="mt-1 text-xs text-[#6e6c67]">Escolha quais áreas do setor aparecerão para este usuário.</p>
+                {Object.entries(permissionGroups).map(([group, definitions]) => (
+                  <div className="mt-5" key={group}>
+                    <h4 className="text-sm font-semibold">{group}</h4>
+                    <p className="mt-1 text-xs text-[#6e6c67]">Selecione individualmente o que este usuário poderá acessar.</p>
                     <div className="mt-3 grid overflow-hidden rounded-md border border-black/10 sm:grid-cols-2">
-                      {qualityPermissionDefinitions.map((permission) => {
+                      {definitions.map((permission) => {
                         const checked = form.role === "admin" || form.permissions.includes(permission.key)
                         return (
                           <label key={permission.key} className={`flex items-start gap-3 border-b border-black/10 p-4 sm:odd:border-r ${form.role === "admin" ? "cursor-not-allowed bg-neutral-50" : "cursor-pointer hover:bg-neutral-50"}`}>
@@ -335,7 +376,7 @@ export function UsersPage({ csrfToken }: { csrfToken: string }) {
                       })}
                     </div>
                   </div>
-                )}
+                ))}
               </div>
 
               <label className="flex cursor-pointer items-center gap-3 text-sm font-medium">
@@ -354,6 +395,25 @@ export function UsersPage({ csrfToken }: { csrfToken: string }) {
           </section>
         </div>
       )}
+
+      <Dialog open={Boolean(userToDelete)} onOpenChange={(open) => { if (!open && !isDeleting) setUserToDelete(null) }}>
+        <DialogContent className="max-w-md" showCloseButton={!isDeleting}>
+          <DialogHeader>
+            <div className="mb-2 grid size-10 place-items-center rounded-full bg-red-50 text-red-600"><AlertTriangle className="size-5" /></div>
+            <DialogTitle>Excluir conta</DialogTitle>
+            <DialogDescription>
+              A conta de <strong className="text-black">{userToDelete?.name}</strong> será excluída permanentemente. Os RAPs e coletas existentes serão preservados.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" type="button" disabled={isDeleting} onClick={() => setUserToDelete(null)}>Cancelar</Button>
+            <Button className="bg-red-600 hover:bg-red-700" type="button" disabled={isDeleting} onClick={() => void deleteUser()}>
+              {isDeleting ? <LoaderCircle className="animate-spin" /> : <Trash2 />}
+              {isDeleting ? "Excluindo..." : "Excluir conta"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

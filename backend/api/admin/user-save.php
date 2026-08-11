@@ -13,6 +13,7 @@ $id = max(0, (int) ($data['id'] ?? 0));
 $name = normalizeName((string) ($data['name'] ?? ''));
 $email = normalizeEmail((string) ($data['email'] ?? ''));
 $jobTitle = normalizeName((string) ($data['jobTitle'] ?? ''));
+$sector = normalizeName((string) ($data['sector'] ?? ''));
 $role = (string) ($data['role'] ?? 'user');
 $password = (string) ($data['password'] ?? '');
 $isActive = filter_var($data['isActive'] ?? true, FILTER_VALIDATE_BOOL);
@@ -47,25 +48,28 @@ if (!in_array($role, ['admin', 'user'], true)) {
     jsonResponse(['message' => 'Escolha um tipo de conta válido.'], 422);
 }
 
-if (($id === 0 && $password === '') || ($password !== '' && (strlen($password) < 8 || strlen($password) > 72))) {
-    jsonResponse(['message' => 'A senha deve ter entre 8 e 72 caracteres.'], 422);
+if ($id === 0 && $password === '') {
+    jsonResponse(['message' => 'Informe uma senha inicial.'], 422);
+}
+
+if (strlen($sector) < 2 || strlen($sector) > 120) {
+    jsonResponse(['message' => 'Informe um setor válido.'], 422);
+}
+
+if ($password !== '' && ($policyError = passwordPolicyError($password))) {
+    jsonResponse(['message' => $policyError], 422);
 }
 
 if ($role === 'admin') {
     $permissions = array_keys(systemPermissions());
 } else {
-    if (in_array('quality.manage', $permissions, true)) {
-        $permissions = array_merge($permissions, [
-            'quality.view',
-            'quality.raps',
-            'quality.dispatches',
-            'quality.records',
-        ]);
+    $qualityActions = ['quality.manage', 'quality.create_rap', 'quality.create_dispatch'];
+    if (array_intersect($qualityActions, $permissions) !== []) {
+        $permissions[] = 'quality.view';
     }
 
-    if (in_array('quality.view', $permissions, true)
-        && array_intersect($qualitySections, $permissions) === []) {
-        $permissions = array_merge($permissions, $qualitySections);
+    if (array_intersect($qualitySections, $permissions) !== []) {
+        $permissions[] = 'quality.view';
     }
 
     $permissions = array_values(array_unique($permissions));
@@ -104,20 +108,22 @@ try {
         }
 
         $sql = 'UPDATE users
-                SET name = :name, email = :email, job_title = :job_title,
+                SET name = :name, email = :email, job_title = :job_title, sector = :sector,
                     role = :role, is_active = :is_active';
         $parameters = [
             'id' => $id,
             'name' => $name,
             'email' => $email,
             'job_title' => $jobTitle,
+            'sector' => $sector,
             'role' => $role,
             'is_active' => $isActive ? 1 : 0,
         ];
 
         if ($password !== '') {
-            $sql .= ', password_hash = :password_hash';
+            $sql .= ', password_hash = :password_hash, must_change_password = :must_change_password';
             $parameters['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
+            $parameters['must_change_password'] = $id === (int) $administrator['id'] ? 0 : 1;
         }
 
         $sql .= ' WHERE id = :id';
@@ -125,13 +131,16 @@ try {
         $message = 'Usuário atualizado com sucesso.';
     } else {
         $query = $connection->prepare(
-            'INSERT INTO users (name, email, job_title, profile_photo, password_hash, role, is_active)
-             VALUES (:name, :email, :job_title, NULL, :password_hash, :role, :is_active)'
+            'INSERT INTO users
+                (name, email, job_title, sector, profile_photo, password_hash, role, is_active, must_change_password)
+             VALUES
+                (:name, :email, :job_title, :sector, NULL, :password_hash, :role, :is_active, 1)'
         );
         $query->execute([
             'name' => $name,
             'email' => $email,
             'job_title' => $jobTitle,
+            'sector' => $sector,
             'password_hash' => password_hash($password, PASSWORD_DEFAULT),
             'role' => $role,
             'is_active' => $isActive ? 1 : 0,
@@ -150,8 +159,11 @@ try {
     }
 
     $connection->prepare(
-        "UPDATE access_requests SET status = 'approved' WHERE email = :email AND status = 'pending'"
-    )->execute(['email' => $email]);
+        "UPDATE access_requests
+            SET status = 'approved'
+          WHERE status = 'pending'
+            AND (email = :email OR (email IS NULL AND name = :request_name))"
+    )->execute(['email' => $email, 'request_name' => $name]);
 
     $connection->commit();
 } catch (PDOException $exception) {

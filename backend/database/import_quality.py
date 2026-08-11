@@ -81,7 +81,7 @@ def sequence_of(code: str, fallback: int) -> int:
 
 
 def quote(value: object) -> str:
-    """Literal SQL com escape manual — o arquivo é lido pelo cliente mysql, não por PDO."""
+    """Literal SQL com escape manual - o arquivo é lido pelo cliente mysql, não por PDO."""
     if value is None or value == "":
         return "NULL"
     if isinstance(value, bool):
@@ -186,7 +186,7 @@ def build(path: Path) -> tuple[list[str], dict[str, int]]:
             skipped_reports += 1
             continue
         report_id = len(report_rows) + 1
-        # Nesta aba a coluna 6 é o MODELO e a 7 é a MÁQUINA — o inverso da aba de saída.
+        # Nesta aba a coluna 6 é o MODELO e a 7 é a MÁQUINA - o inverso da aba de saída.
         report_rows.append(
             "("
             + ", ".join(

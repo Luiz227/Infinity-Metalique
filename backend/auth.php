@@ -16,51 +16,91 @@ function normalizeEmail(string $email): string
     return strtolower(trim($email));
 }
 
+/** Política única para senhas temporárias e definitivas. */
+function passwordPolicyError(string $password): ?string
+{
+    if (strlen($password) < 8 || strlen($password) > 72) {
+        return 'A senha deve ter entre 8 e 72 caracteres.';
+    }
+
+    if (!preg_match('/\p{N}/u', $password)) {
+        return 'A senha deve conter pelo menos um número.';
+    }
+
+    if (!preg_match('/[^\p{L}\p{N}]/u', $password)) {
+        return 'A senha deve conter pelo menos um caractere especial.';
+    }
+
+    return null;
+}
+
 /** Permissões reconhecidas pelo sistema e exibidas na administração de contas. */
 function systemPermissions(): array
 {
     return [
         'dashboard.view' => [
+            'group' => 'Geral',
             'label' => 'Acessar Dashboard',
             'description' => 'Visualizar a tela inicial do sistema.',
         ],
         'quality.view' => [
+            'group' => 'Qualidade',
+            'assignable' => false,
             'label' => 'Visualizar Qualidade',
             'description' => 'Consultar indicadores, registros e documentos da Qualidade.',
         ],
         'quality.manage' => [
-            'label' => 'Gerenciar dados da Qualidade',
-            'description' => 'Criar e excluir RAPs e registros de produtos coletados.',
+            'group' => 'Qualidade',
+            'label' => 'Excluir registros da Qualidade',
+            'description' => 'Excluir RAPs e produtos coletados existentes.',
+        ],
+        'quality.create_rap' => [
+            'group' => 'Qualidade',
+            'label' => 'Criar novo RAP',
+            'description' => 'Exibir o botão Novo RAP e registrar apontamentos.',
+        ],
+        'quality.create_dispatch' => [
+            'group' => 'Qualidade',
+            'label' => 'Criar nova coleta',
+            'description' => 'Exibir o botão Nova coleta e registrar produtos coletados.',
         ],
         'quality.raps' => [
+            'group' => 'Qualidade',
             'label' => 'RAPs',
             'description' => 'Visualizar os indicadores de relatórios de ação preventiva.',
         ],
         'quality.units' => [
+            'group' => 'Qualidade',
             'label' => 'Unidades',
             'description' => 'Visualizar indicadores por barracão e gate.',
         ],
         'quality.products' => [
+            'group' => 'Qualidade',
             'label' => 'Produtos',
             'description' => 'Visualizar indicadores por máquina e modelo.',
         ],
         'quality.dispatches' => [
+            'group' => 'Qualidade',
             'label' => 'Produtos Coletados',
             'description' => 'Consultar coletas e expedições registradas.',
         ],
         'quality.employees' => [
+            'group' => 'Qualidade',
             'label' => 'Colaboradores',
             'description' => 'Visualizar os indicadores por colaborador.',
         ],
         'quality.satisfaction' => [
+            'group' => 'Qualidade',
             'label' => 'Qualidade',
             'description' => 'Visualizar satisfação e reclamações de clientes.',
         ],
         'quality.records' => [
+            'group' => 'Qualidade',
             'label' => 'Registros',
             'description' => 'Consultar a listagem de apontamentos registrados.',
         ],
         'users.manage' => [
+            'group' => 'Administração',
             'label' => 'Administrar usuários',
             'description' => 'Criar contas e alterar cargos, status e permissões.',
         ],
@@ -83,16 +123,10 @@ function userPermissions(PDO $connection, int $userId, string $role): array
         array_keys(systemPermissions())
     ));
 
-    // A gestão da Qualidade precisa da listagem onde RAPs e RETIR são
-    // consultados e excluídos. A expansão também contempla supervisores
-    // cadastrados antes de Registros passar a fazer parte dessa permissão.
-    if (in_array('quality.manage', $permissions, true)) {
-        $permissions = array_merge($permissions, [
-            'quality.view',
-            'quality.raps',
-            'quality.dispatches',
-            'quality.records',
-        ]);
+    // Ações liberam a rota da Qualidade sem selecionar automaticamente uma aba.
+    $qualityActions = ['quality.manage', 'quality.create_rap', 'quality.create_dispatch'];
+    if (array_intersect($qualityActions, $permissions) !== []) {
+        $permissions[] = 'quality.view';
     }
 
     return array_values(array_unique($permissions));
@@ -106,11 +140,14 @@ function publicUser(array $user, PDO $connection): array
     return [
         'id' => (int) $user['id'],
         'name' => (string) $user['name'],
+        'nickname' => !empty($user['nickname']) ? (string) $user['nickname'] : null,
         'email' => (string) $user['email'],
         'job_title' => (string) ($user['job_title'] ?? 'Colaborador'),
+        'sector' => (string) ($user['sector'] ?? 'Não informado'),
         'role' => $role,
         'is_primary_admin' => (bool) ($user['is_primary_admin'] ?? false),
         'is_active' => (bool) ($user['is_active'] ?? true),
+        'must_change_password' => (bool) ($user['must_change_password'] ?? false),
         'profile_photo' => !empty($user['profile_photo']) ? (string) $user['profile_photo'] : null,
         'permissions' => userPermissions($connection, (int) $user['id'], $role),
     ];
@@ -127,47 +164,52 @@ function userHasPermission(?array $user, string $permission): bool
 }
 
 /** Valida e registra uma solicitação sem criar um usuário ativo. */
-function requestAccess(string $name, string $email, string $password): array
+function requestAccess(string $name, string $sector, string $jobTitle, string $admissionDate): array
 {
     $name = normalizeName($name);
-    $email = normalizeEmail($email);
+    $sector = normalizeName($sector);
+    $jobTitle = normalizeName($jobTitle);
 
     if (strlen($name) < 3 || strlen($name) > 120) {
         return ['success' => false, 'message' => 'Informe um nome completo válido.'];
     }
 
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 254) {
-        return ['success' => false, 'message' => 'Informe um e-mail válido.'];
+    if (strlen($sector) < 2 || strlen($sector) > 120) {
+        return ['success' => false, 'message' => 'Informe um setor válido.'];
     }
 
-    if (strlen($password) < 8 || strlen($password) > 72) {
-        return ['success' => false, 'message' => 'A senha deve ter entre 8 e 72 caracteres.'];
+    if (strlen($jobTitle) < 2 || strlen($jobTitle) > 120) {
+        return ['success' => false, 'message' => 'Informe um cargo válido.'];
+    }
+
+    $date = DateTimeImmutable::createFromFormat('!Y-m-d', $admissionDate);
+    $dateErrors = DateTimeImmutable::getLastErrors();
+    if (!$date || ($dateErrors !== false && ($dateErrors['warning_count'] > 0 || $dateErrors['error_count'] > 0))
+        || $date->format('Y-m-d') !== $admissionDate || $date > new DateTimeImmutable('today')) {
+        return ['success' => false, 'message' => 'Informe uma data de admissão válida.'];
     }
 
     $connection = database();
-    $activeUser = $connection->prepare('SELECT 1 FROM users WHERE email = :email LIMIT 1');
-    $activeUser->execute(['email' => $email]);
-
-    if ($activeUser->fetchColumn()) {
-        return ['success' => false, 'message' => 'Já existe um usuário ativo com este e-mail.'];
-    }
-
     $pendingRequest = $connection->prepare(
-        "SELECT 1 FROM access_requests WHERE email = :email AND status = 'pending' LIMIT 1"
+        "SELECT 1 FROM access_requests
+          WHERE name = :name AND admission_date = :admission_date AND status = 'pending'
+          LIMIT 1"
     );
-    $pendingRequest->execute(['email' => $email]);
+    $pendingRequest->execute(['name' => $name, 'admission_date' => $admissionDate]);
 
     if ($pendingRequest->fetchColumn()) {
-        return ['success' => false, 'message' => 'Já existe uma solicitação pendente para este e-mail.'];
+        return ['success' => false, 'message' => 'Já existe uma solicitação pendente para este colaborador.'];
     }
 
     $query = $connection->prepare(
-        'INSERT INTO access_requests (name, email, password_hash) VALUES (:name, :email, :password_hash)'
+        'INSERT INTO access_requests (name, sector, job_title, admission_date)
+         VALUES (:name, :sector, :job_title, :admission_date)'
     );
     $query->execute([
         'name' => $name,
-        'email' => $email,
-        'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+        'sector' => $sector,
+        'job_title' => $jobTitle,
+        'admission_date' => $admissionDate,
     ]);
 
     return ['success' => true, 'message' => 'Solicitação de acesso enviada com sucesso.'];
@@ -184,7 +226,8 @@ function authenticateUser(string $email, string $password): bool
 
     $connection = database();
     $query = $connection->prepare(
-        'SELECT id, name, email, job_title, role, is_primary_admin, is_active,
+        'SELECT id, name, nickname, email, job_title, sector, role, is_primary_admin, is_active,
+                must_change_password,
                 profile_photo, password_hash
          FROM users
          WHERE email = :email AND is_active = 1
@@ -217,7 +260,8 @@ function currentUser(): ?array
     try {
         $connection = database();
         $query = $connection->prepare(
-            'SELECT id, name, email, job_title, role, is_primary_admin, is_active, profile_photo
+            'SELECT id, name, nickname, email, job_title, sector, role, is_primary_admin, is_active,
+                    must_change_password, profile_photo
              FROM users WHERE id = :id LIMIT 1'
         );
         $query->execute(['id' => (int) $user['id']]);

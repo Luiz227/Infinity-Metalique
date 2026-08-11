@@ -81,7 +81,7 @@ export function textOptions(values: readonly string[]): Option[] {
 const SEM_COLABORADOR = "__nenhum__"
 
 /**
- * Até três colaboradores por registro — é o que alimenta o indicador individual.
+ * Até três colaboradores por registro - é o que alimenta o indicador individual.
  * Cada posição é um campo próprio para deixar claro o limite.
  */
 export function EmployeePicker({ employees, value, onChange }: {

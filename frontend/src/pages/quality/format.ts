@@ -4,7 +4,7 @@ const dateFormatter = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: 
 
 /** Converte 2026-01-05 em 05/01/2026 sem passar pelo fuso do navegador. */
 export function formatDate(value: string | null): string {
-  if (!value) return "—"
+  if (!value) return "-"
 
   const [year, month, day] = value.slice(0, 10).split("-").map(Number)
   if (!year || !month || !day) return value
@@ -31,7 +31,7 @@ export function formatPeriod(period: string): string {
 
 /** Percentual com uma casa, no padrão brasileiro. */
 export function formatPercent(value: number | null): string {
-  if (value === null) return "—"
+  if (value === null) return "-"
 
   return `${value.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
 }

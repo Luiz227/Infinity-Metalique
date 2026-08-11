@@ -51,14 +51,14 @@ export function DispatchSection({
       <div className="grid gap-4">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile label="Total de coletas" value={data.cards.totalDispatches} hero hint="Relatórios de produto coletado" />
-        <StatTile label="Máquina destaque" value={data.cards.highlightMachine ?? "—"} hint="Linha mais expedida no período" />
-        <StatTile label="Modelo destaque" value={data.cards.highlightModel ?? "—"} hint="Carro-chefe do período" />
+        <StatTile label="Máquina destaque" value={data.cards.highlightMachine ?? "-"} hint="Linha mais expedida no período" />
+        <StatTile label="Modelo destaque" value={data.cards.highlightModel ?? "-"} hint="Carro-chefe do período" />
         <StatTile label="Reclamações" value={data.cards.totalComplaints} hint="Ligadas à expedição" />
       </div>
 
       <ChartCard
         title="Coletas por mês"
-        description="Volume de máquinas expedidas — base para decidir produção e importação."
+        description="Volume de máquinas expedidas - base para decidir produção e importação."
         help="Cada coluna conta as máquinas que saíram no mês. É o denominador da taxa de satisfação na aba Qualidade: reclamação só significa alguma coisa comparada ao volume expedido no mesmo período. Clique numa coluna para recortar os demais gráficos por aquele mês."
         table={{ head: ["Mês", "Coletas"], rows: data.dispatchesByPeriod.map((row) => [row.label, row.value]) }}
       >
@@ -75,7 +75,7 @@ export function DispatchSection({
         <ChartCard
           title="Coletas por tipo de máquina"
           description="Qual linha de produto mais sai."
-          help="Volume expedido por linha de produto. Cruze com “RAPs por tipo de máquina” na aba Produtos: a linha que mais sai naturalmente gera mais apontamento — o que pede ação é a que gera muito RAP e sai pouco."
+          help="Volume expedido por linha de produto. Cruze com “RAPs por tipo de máquina” na aba Produtos: a linha que mais sai naturalmente gera mais apontamento - o que pede ação é a que gera muito RAP e sai pouco."
           table={{ head: ["Máquina", "Coletas"], rows: data.dispatchesByMachineType.map((row) => [row.label, row.value]) }}
         >
           <RankingBars
@@ -91,8 +91,8 @@ export function DispatchSection({
 
         <ChartCard
           title="Coletas por modelo"
-          description="Os 15 modelos mais expedidos no período filtrado."
-          help="Só os 15 primeiros colocados entram, para o eixo continuar legível. Serve de base de comparação para o ranking de RAPs por modelo: mesma ordem nos dois gráficos quer dizer que o apontamento acompanha o volume, e não o modelo."
+          description="Os modelos mais expedidos no período filtrado."
+          help="Na visualização normal aparecem os 15 primeiros colocados; abra em tela cheia para consultar todos. Serve de base de comparação para o ranking de RAPs por modelo: mesma ordem nos dois gráficos quer dizer que o apontamento acompanha o volume, e não o modelo."
           table={{ head: ["Modelo", "Coletas"], rows: data.dispatchesByModel.map((row) => [row.label, row.value]) }}
         >
           <RankingBars
@@ -103,6 +103,7 @@ export function DispatchSection({
             labelWidth={170}
             selectedLabel={(selection?.filters.model as string | undefined) ?? null}
             onSelect={onSelectModel}
+            collapsedLimit={15}
           />
         </ChartCard>
       </div>
@@ -127,9 +128,9 @@ export function DispatchSection({
                 <tr key={row.id} className="border-b border-[#f0efec] last:border-0">
                   <td className="py-2 pr-3 font-medium text-[#0b0b0b] [font-variant-numeric:tabular-nums]">{row.code}</td>
                   <td className="py-2 pr-3 text-[#52514e] [font-variant-numeric:tabular-nums]">{formatDate(row.dispatch_date)}</td>
-                  <td className="py-2 pr-3 text-[#0b0b0b]">{row.client ?? "—"}</td>
-                  <td className="py-2 pr-3 text-[#52514e]">{row.machine_type ?? "—"}</td>
-                  <td className="py-2 pr-3 text-[#52514e]">{row.model ?? "—"}</td>
+                  <td className="py-2 pr-3 text-[#0b0b0b]">{row.client ?? "-"}</td>
+                  <td className="py-2 pr-3 text-[#52514e]">{row.machine_type ?? "-"}</td>
+                  <td className="py-2 pr-3 text-[#52514e]">{row.model ?? "-"}</td>
                   <td className="py-2 pr-3 text-[#52514e]">
                     <span className="inline-flex items-center gap-1">
                       <Camera className="size-3.5" aria-hidden="true" />

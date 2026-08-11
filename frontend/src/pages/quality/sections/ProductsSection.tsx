@@ -3,7 +3,7 @@ import { RankingBars } from "@/pages/quality/charts/QualityCharts"
 import { StatTile } from "@/pages/quality/charts/StatTile"
 import type { QualityChartSelection, QualityDashboard, QualityOptions } from "@/pages/quality/types"
 
-/** Onde o erro é mais frequente por produto — direciona ação preventiva por modelo. */
+/** Onde o erro é mais frequente por produto - direciona ação preventiva por modelo. */
 export function ProductsSection({ data, highlight, selection, options, onSelectModel, onSelectMachineType }: {
   data: QualityDashboard
   highlight: QualityDashboard | null
@@ -22,12 +22,12 @@ export function ProductsSection({ data, highlight, selection, options, onSelectM
         <StatTile label="Total de RAPs" value={data.cards.totalReports} hero hint="Apontamentos no filtro atual" />
         <StatTile
           label="Modelo com mais RAPs"
-          value={leadingModel?.label ?? "—"}
+          value={leadingModel?.label ?? "-"}
           hint={leadingModel ? `${leadingModel.value} apontamentos` : undefined}
         />
         <StatTile
           label="Máquina com mais RAPs"
-          value={leadingMachine?.label ?? "—"}
+          value={leadingMachine?.label ?? "-"}
           hint={leadingMachine ? `${leadingMachine.value} apontamentos` : undefined}
         />
         <StatTile label="Modelos registrados" value={data.cards.models} hint={`${data.cards.machineTypes} tipos de máquina`} />
@@ -36,8 +36,8 @@ export function ProductsSection({ data, highlight, selection, options, onSelectM
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartCard
           title="RAPs por modelo"
-          description="Os 15 modelos com mais apontamentos."
-          help="Só os 15 primeiros colocados entram — a cauda de modelos com um ou dois RAPs fica de fora para o eixo continuar legível. Modelo que vende mais aparece mais; o sinal útil é o modelo que sobe de posição sem ter subido de volume. Clique numa barra para recortar os demais gráficos por ele."
+          description="Os modelos com mais apontamentos."
+          help="Na visualização normal aparecem os 15 primeiros colocados; abra em tela cheia para consultar todos. Modelo que vende mais aparece mais; o sinal útil é o modelo que sobe de posição sem ter subido de volume. Clique numa barra para recortar os demais gráficos por ele."
           table={{ head: ["Modelo", "RAPs"], rows: data.reportsByModel.map((row) => [row.label, row.value]) }}
         >
           <RankingBars
@@ -48,6 +48,7 @@ export function ProductsSection({ data, highlight, selection, options, onSelectM
             labelWidth={130}
             selectedLabel={(selection?.filters.model as string | undefined) ?? null}
             onSelect={onSelectModel}
+            collapsedLimit={15}
           />
         </ChartCard>
 

@@ -86,8 +86,8 @@ O script gera `backend/database/seed_quality.sql` e é idempotente: o SQL limpa 
 tabelas da qualidade antes de inserir, então rodar de novo substitui a carga
 anterior em vez de duplicá-la. O arquivo gerado não vai para o Git.
 
-O painel tem sete seções — RAPs, Unidades, Produtos, Produtos Coletados,
-Colaboradores, Qualidade e Registros — todas recortadas pela mesma barra de
+O painel tem sete seções: RAPs, Unidades, Produtos, Produtos Coletados,
+Colaboradores, Qualidade e Registros, todas recortadas pela mesma barra de
 filtros. Cada gráfico tem uma tabela equivalente pelo botão **Tabela**, e RAPs e
 coletas podem ser impressos ou salvos em PDF pela caixa de impressão do navegador.
 
@@ -110,7 +110,7 @@ Nesta entrega qualquer usuário autenticado acessa a view; a segmentação por �
 - `frontend/src/styles`: estilos globais e estilos das telas.
 - `frontend/public/images`: imagens utilizadas pela interface.
 - `frontend/src/components/ui`: componentes visuais baseados em shadcn e Radix.
-- `frontend/src/pages/quality`: view da qualidade — seções, formulários e impressão.
+- `frontend/src/pages/quality`: view da qualidade, seções, formulários e impressão.
 - `frontend/src/components/layout`: cabeçalho e moldura compartilhados pelas telas internas.
 - `backend/config.php`: configuração e conexão PDO com o MySQL.
 - `backend/bootstrap.php`: sessão, CSRF, mensagens e funções compartilhadas.

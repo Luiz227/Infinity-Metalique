@@ -31,6 +31,7 @@ export function HomePage({
   csrfToken: string
   onLogout: () => void
 }) {
+  const [activeSection, setActiveSection] = useState<"home" | "ajuda" | "contato">("home")
   const [total, setTotal] = useState(0)
   const [users, setUsers] = useState<SummaryUser[]>([])
 
@@ -66,9 +67,9 @@ export function HomePage({
             <img src="/images/logo-b.svg" alt="Metalique Infinity" />
           </AppLink>
           <nav className="navigation-links" aria-label="Navegação principal">
-            <AppLink className="active" to="/">Home</AppLink>
-            <a href="#ajuda">Ajuda</a>
-            <a href="#contato">Contato</a>
+            <a className={activeSection === "home" ? "active" : undefined} href="/" onClick={(event) => { event.preventDefault(); setActiveSection("home") }}>Home</a>
+            <a className={activeSection === "ajuda" ? "active" : undefined} href="#ajuda" onClick={(event) => { event.preventDefault(); setActiveSection("ajuda") }}>Ajuda</a>
+            <a className={activeSection === "contato" ? "active" : undefined} href="#contato" onClick={(event) => { event.preventDefault(); setActiveSection("contato") }}>Contato</a>
           </nav>
         </header>
 
@@ -81,7 +82,7 @@ export function HomePage({
             <small>{userLabel}</small>
           </div>
           <p className="team-message">Venha fazer<br />parte da equipe!</p>
-          <a className="round-arrow" href="#contato" aria-label="Conheça a equipe">
+          <a className="round-arrow" href="#contato" aria-label="Conheça a equipe" onClick={(event) => { event.preventDefault(); setActiveSection("contato") }}>
             <img src="/images/figma-seta.svg" alt="" />
           </a>
         </div>
@@ -102,9 +103,18 @@ export function HomePage({
           )}
         </div>
 
-        <div className="hero-copy">
-          <h1>A integração Metalique chegou para simplificar</h1>
-          <p>E deixar seus processos infinitamente melhor!</p>
+        <div className={`hero-copy${activeSection === "home" ? "" : " development-copy"}`} aria-live="polite">
+          {activeSection === "home" ? (
+            <>
+              <h1>A integração Metalique chegou para simplificar</h1>
+              <p>E deixar seus processos infinitamente melhor!</p>
+            </>
+          ) : (
+            <>
+              <h1>{activeSection === "ajuda" ? "Ajuda" : "Contato"}</h1>
+              <p>Área em desenvolvimento.</p>
+            </>
+          )}
         </div>
 
         <div className="red-lines" aria-hidden="true">

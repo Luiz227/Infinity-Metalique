@@ -8,6 +8,7 @@ import { type Route, currentRoute, navigate } from "@/lib/router"
 import { DashboardPage } from "@/pages/dashboard/DashboardPage"
 import { HomePage } from "@/pages/home/HomePage"
 import { LoginPage } from "@/pages/login/LoginPage"
+import { RequiredPasswordChangePage } from "@/pages/password-change/RequiredPasswordChangePage"
 import { AccessRequestPage } from "@/pages/access-request/AccessRequestPage"
 import { QualityPage } from "@/pages/quality/QualityPage"
 import { UsersPage } from "@/pages/users/UsersPage"
@@ -103,6 +104,23 @@ function App() {
     )
   }
 
+  if (user?.must_change_password) {
+    return (
+      <RequiredPasswordChangePage
+        user={user}
+        csrfToken={csrfToken}
+        onChanged={(updatedUser) => {
+          setUser(updatedUser)
+          navigate(firstAllowedRoute(updatedUser), true)
+        }}
+        onLogout={() => {
+          setUser(null)
+          navigate("/login", true)
+        }}
+      />
+    )
+  }
+
   if (route === "/login") {
     return (
       <LoginPage
@@ -150,11 +168,13 @@ function App() {
                 <QualityPage
                   csrfToken={csrfToken}
                   permissions={user.permissions || []}
-                  canManage={!Array.isArray(user.permissions) || user.permissions.includes("quality.manage")}
+                  canCreateRap={user.role === "admin" || user.permissions.includes("quality.create_rap")}
+                  canCreateDispatch={user.role === "admin" || user.permissions.includes("quality.create_dispatch")}
+                  canDelete={user.role === "admin" || user.permissions.includes("quality.manage")}
                   tabsInHeader={isQualityOnlyAccount(user)}
                 />
               )}
-              {route === "/usuarios" && <UsersPage csrfToken={csrfToken} />}
+              {route === "/usuarios" && <UsersPage csrfToken={csrfToken} currentUserId={user.id} />}
               {route === "/sistema" && <DashboardPage />}
             </motion.div>
           </AnimatePresence>

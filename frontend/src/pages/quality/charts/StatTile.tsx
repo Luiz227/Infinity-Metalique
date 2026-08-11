@@ -1,5 +1,5 @@
 /**
- * Cartão de número. Quando a resposta é um valor só, ele é o gráfico — por isso
+ * Cartão de número. Quando a resposta é um valor só, ele é o gráfico - por isso
  * a taxa de satisfação aparece aqui e não como uma pizza de duas fatias.
  * Os números usam algarismos proporcionais; tabular fica para colunas.
  */

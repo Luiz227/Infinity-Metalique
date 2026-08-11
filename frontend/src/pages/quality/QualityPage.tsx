@@ -47,11 +47,13 @@ type PrintTarget = { kind: "report" | "dispatch"; id: number }
  * mais o lançamento de RAP e de produto coletado. Uma única barra de filtros
  * recorta todas as seções.
  *
- * Devolve só o conteúdo do painel — a moldura e o cabeçalho vêm do AppShell.
+ * Devolve só o conteúdo do painel - a moldura e o cabeçalho vêm do AppShell.
  */
-export function QualityPage({ csrfToken, canManage, permissions, tabsInHeader }: {
+export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canDelete, permissions, tabsInHeader }: {
   csrfToken: string
-  canManage: boolean
+  canCreateRap: boolean
+  canCreateDispatch: boolean
+  canDelete: boolean
   permissions: PermissionKey[]
   tabsInHeader: boolean
 }) {
@@ -76,10 +78,9 @@ export function QualityPage({ csrfToken, canManage, permissions, tabsInHeader }:
   const [printReport, setPrintReport] = useState<ReportDetail | null>(null)
   const [printDispatch, setPrintDispatch] = useState<DispatchDetail | null>(null)
   const loadController = useRef<AbortController | null>(null)
-  const hasSectionPermissions = TABS.some((item) => permissions.includes(item.permission))
-  const visibleTabs = hasSectionPermissions
-    ? TABS.filter((item) => permissions.includes(item.permission))
-    : TABS
+  const visibleTabs = TABS.filter((item) => permissions.includes(item.permission))
+  const hasVisibleTab = visibleTabs.some((item) => item.id === tab)
+  const isActionOnly = visibleTabs.length === 0 && (canCreateRap || canCreateDispatch)
 
   useEffect(() => {
     if (!visibleTabs.some((item) => item.id === tab)) {
@@ -99,6 +100,17 @@ export function QualityPage({ csrfToken, canManage, permissions, tabsInHeader }:
     window.addEventListener("metalique:quality-tab", selectHeaderTab)
     return () => window.removeEventListener("metalique:quality-tab", selectHeaderTab)
   }, [permissions, visibleTabs])
+
+  useEffect(() => {
+    const openHeaderForm = (event: Event) => {
+      const form = (event as CustomEvent<"rap" | "dispatch">).detail
+      if (form === "rap" && canCreateRap) setOpenForm("rap")
+      if (form === "dispatch" && canCreateDispatch) setOpenForm("dispatch")
+    }
+
+    window.addEventListener("metalique:quality-open-form", openHeaderForm)
+    return () => window.removeEventListener("metalique:quality-open-form", openHeaderForm)
+  }, [canCreateDispatch, canCreateRap])
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent("metalique:quality-tab-changed", { detail: tab }))
@@ -235,7 +247,7 @@ export function QualityPage({ csrfToken, canManage, permissions, tabsInHeader }:
   }
 
   const selectText = (key: "shed" | "gate" | "problemType" | "model", value: string) => {
-    if (value === "—") return
+    if (value === "-") return
     const labels = { shed: "Barracão", gate: "Gate", problemType: "Problema", model: "Modelo" }
     selectChart({ key: `${key}:${value}`, label: `${labels[key]}: ${value}`, filters: { [key]: value } })
   }
@@ -255,7 +267,7 @@ export function QualityPage({ csrfToken, canManage, permissions, tabsInHeader }:
 
   const selectGatePeriod = (gate: string, period: string) => {
     const match = /^(\d{4})-(\d{2})$/.exec(period)
-    if (!match || gate === "—") return
+    if (!match || gate === "-") return
 
     const year = Number(match[1])
     const month = Number(match[2])
@@ -354,20 +366,25 @@ export function QualityPage({ csrfToken, canManage, permissions, tabsInHeader }:
         <div>
           <h1 className="text-[clamp(30px,2.4vw,43px)] font-medium leading-none">Qualidade</h1>
           <p className="mt-2 text-sm text-[#52514e]">
-            Apontamentos, expedição e satisfação do cliente — administração do setor.
+            Apontamentos, expedição e satisfação do cliente - administração do setor.
           </p>
         </div>
 
-        {canManage && (
+        {visibleTabs.length > 0 && (canCreateRap || canCreateDispatch) && (
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" className="rounded-full" onClick={() => setOpenForm("dispatch")} disabled={!options}>
-              <PackagePlus /> Nova coleta
-            </Button>
-            <Button type="button" className="rounded-full" onClick={() => setOpenForm("rap")} disabled={!options}>
-              <ClipboardList /> Novo RAP
-            </Button>
+            {canCreateDispatch && (
+              <Button type="button" variant="outline" className="rounded-full" onClick={() => setOpenForm("dispatch")} disabled={!options}>
+                <PackagePlus /> Nova coleta
+              </Button>
+            )}
+            {canCreateRap && (
+              <Button type="button" className="rounded-full" onClick={() => setOpenForm("rap")} disabled={!options}>
+                <ClipboardList /> Novo RAP
+              </Button>
+            )}
           </div>
         )}
+
       </div>
 
       {notice && (
@@ -379,14 +396,16 @@ export function QualityPage({ csrfToken, canManage, permissions, tabsInHeader }:
 
       {error && <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{error}</p>}
 
-      <div className="mt-6">
-        <FilterBar
-          filters={filters}
-          options={options}
-          onChange={changeFilters}
-          onReset={() => changeFilters(emptyFilters)}
-        />
-      </div>
+      {visibleTabs.length > 0 && (
+        <div className="mt-6">
+          <FilterBar
+            filters={filters}
+            options={options}
+            onChange={changeFilters}
+            onReset={() => changeFilters(emptyFilters)}
+          />
+        </div>
+      )}
 
       {!tabsInHeader && (
         <nav className="mt-5 flex flex-wrap gap-2" aria-label="Seções da qualidade">
@@ -408,12 +427,14 @@ export function QualityPage({ csrfToken, canManage, permissions, tabsInHeader }:
         </nav>
       )}
 
-      <p className="mt-3 flex items-center gap-1.5 text-xs text-[#52514e]">
-        <MousePointerClick className="size-3.5" aria-hidden="true" />
-        Clique em uma barra, ponto ou fatia para comparar o subconjunto com os totais; clique novamente para desfazer.
-      </p>
+      {visibleTabs.length > 0 && (
+        <p className="mt-3 flex items-center gap-1.5 text-xs text-[#52514e]">
+          <MousePointerClick className="size-3.5" aria-hidden="true" />
+          Clique em uma barra, ponto ou fatia para comparar o subconjunto com os totais; clique novamente para desfazer.
+        </p>
+      )}
 
-      <div className="relative mt-3 pb-2">
+      {visibleTabs.length > 0 && <div className="relative mt-3 pb-2">
         {/* Sem piscar de esqueleto: a leitura anterior fica esmaecida durante o refetch. */}
         {isFetching && dashboard && (
           <div className="pointer-events-none absolute right-0 top-0 z-10 flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs text-[#52514e] shadow">
@@ -429,7 +450,7 @@ export function QualityPage({ csrfToken, canManage, permissions, tabsInHeader }:
 
         {/* O recorte só troca quando os números chegam; esmaecer o painel nesse
             intervalo é o retorno imediato do clique. */}
-        {dashboard && (
+        {dashboard && hasVisibleTab && (
           <div key={chartEpoch} className={`transition-opacity ${isFetching ? "opacity-60" : isHighlightLoading ? "opacity-80" : ""}`}>
             {tab === "raps" && (
               <RapsSection
@@ -470,7 +491,7 @@ export function QualityPage({ csrfToken, canManage, permissions, tabsInHeader }:
                 selection={chartSelection}
                 dispatches={dispatches}
                 options={options}
-                canDelete={canManage}
+                canDelete={canDelete}
                 onPrint={(id) => setPrintTarget({ kind: "dispatch", id })}
                 onDelete={deleteRecord}
                 onSelectPeriod={selectPeriod}
@@ -504,7 +525,7 @@ export function QualityPage({ csrfToken, canManage, permissions, tabsInHeader }:
                 dispatches={recordDispatches}
                 reportsPage={reportsPage}
                 dispatchesPage={dispatchesPage}
-                canDelete={canManage}
+                canDelete={canDelete}
                 onReportsPageChange={setReportsPage}
                 onDispatchesPageChange={setDispatchesPage}
                 onPrint={(id) => setPrintTarget({ kind: "report", id })}
@@ -514,21 +535,23 @@ export function QualityPage({ csrfToken, canManage, permissions, tabsInHeader }:
             )}
           </div>
         )}
-      </div>
+      </div>}
 
-      {canManage && openForm === "rap" && options && (
+      {canCreateRap && openForm === "rap" && options && (
         <RapForm
           csrfToken={csrfToken}
           options={options}
+          inline={isActionOnly}
           onClose={() => setOpenForm(null)}
           onCreated={(code) => afterCreate(`Apontamento ${code} registrado.`)}
         />
       )}
 
-      {canManage && openForm === "dispatch" && options && (
+      {canCreateDispatch && openForm === "dispatch" && options && (
         <DispatchForm
           csrfToken={csrfToken}
           options={options}
+          inline={isActionOnly}
           onClose={() => setOpenForm(null)}
           onCreated={(code) => afterCreate(`Coleta ${code} registrada.`)}
         />

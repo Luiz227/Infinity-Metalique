@@ -3,7 +3,7 @@
 /* Carrega cores, reset e estrutura compartilhada pelo sistema. */
 
 /* ==========================================================
-   LOGIN — PROPORÇÕES DO FRAME 1788 × 1005,75
+   LOGIN - PROPORÇÕES DO FRAME 1788 × 1005,75
    ========================================================== */
 .login-frame {
     grid-template-columns: 47.55% 52.45%;
@@ -270,10 +270,16 @@
 .forgot-password {
     margin-top: clamp(26px, 6.55vh, 66px);
     display: inline-block;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font-family: inherit;
     font-size: clamp(12px, 1.38vw, 26.41px);
     font-weight: 300;
     line-height: 0.8654;
-    letter-spacing: -0.05em;
+    letter-spacing: 0;
+    cursor: pointer;
 }
 
 .forgot-password:hover,

@@ -20,10 +20,10 @@ export function RapsSection({ data, highlight, selection, options, onSelectPerio
   const selectedCode = options?.codes.find((code) => Number(code.id) === selection?.filters.codeId)?.code ?? null
 
   // O campeão acompanha o clique: mês, tipo de problema ou código já voltam
-  // recortados em `highlight`. O backend usa COALESCE(r.model, '—'), e um RAP sem
-  // modelo preenchido não é um modelo — por isso ele não pode liderar o cartão.
+  // recortados em `highlight`. O backend usa COALESCE(r.model, '-'), e um RAP sem
+  // modelo preenchido não é um modelo - por isso ele não pode liderar o cartão.
   const modelRows = (selection && highlight ? highlight : data).reportsByModel
-  const leadingModel = modelRows.find((row) => row.label !== "—")
+  const leadingModel = modelRows.find((row) => row.label !== "-")
 
   return (
     <div className="grid gap-4">
@@ -33,7 +33,7 @@ export function RapsSection({ data, highlight, selection, options, onSelectPerio
         <StatTile label="Clientes / lotes" value={cards.clients} hint="Distintos entre os apontamentos" />
         <StatTile
           label="Modelo com mais RAPs"
-          value={leadingModel?.label ?? "—"}
+          value={leadingModel?.label ?? "-"}
           hint={leadingModel
             ? `${leadingModel.value} apontamentos${selection ? ` · ${selection.label}` : ""}`
             : undefined}
@@ -52,6 +52,7 @@ export function RapsSection({ data, highlight, selection, options, onSelectPerio
           highlightData={selection && highlight ? highlight.reportsByPeriod : null}
           selectedPeriod={selectedPeriod}
           onSelect={onSelectPeriod}
+          compact
         />
       </ChartCard>
 
@@ -59,7 +60,7 @@ export function RapsSection({ data, highlight, selection, options, onSelectPerio
         <ChartCard
           title="Tipo de problema"
           description="Categoria da não conformidade registrada na inspeção."
-          help="A categoria escolhida pelo inspetor no momento do apontamento — é a leitura mais grossa da falha. Clique numa barra para ver esse tipo de problema recortado nos outros gráficos e descobrir em qual mês e sob qual código ele se concentra."
+          help="A categoria escolhida pelo inspetor no momento do apontamento - é a leitura mais grossa da falha. Clique numa barra para ver esse tipo de problema recortado nos outros gráficos e descobrir em qual mês e sob qual código ele se concentra."
           table={{ head: ["Tipo", "RAPs"], rows: data.reportsByProblemType.map((row) => [row.label, row.value]) }}
         >
           <RankingBars
@@ -75,7 +76,7 @@ export function RapsSection({ data, highlight, selection, options, onSelectPerio
 
         <ChartCard
           title="Código atribuído"
-          description="Cada código é uma causa padronizada — é por aqui que a ação corretiva é escolhida."
+          description="Cada código é uma causa padronizada - é por aqui que a ação corretiva é escolhida."
           help="O código é a causa padronizada do RAP, e não o sintoma: dois problemas diferentes podem cair no mesmo código quando a origem é a mesma. Os três primeiros aparecem descritos abaixo do gráfico. Clique numa barra para ver o mês, o tipo de problema e o modelo ligados àquele código."
           table={{
             head: ["Código", "Descrição", "RAPs"],
@@ -94,7 +95,7 @@ export function RapsSection({ data, highlight, selection, options, onSelectPerio
           <ul className="mt-3 space-y-1 border-t border-[#f0efec] pt-3 text-xs text-[#52514e]">
             {data.reportsByCode.slice(0, 3).map((row) => (
               <li key={row.label}>
-                <span className="font-semibold text-[#0b0b0b]">{row.label}</span> — {row.description}
+                <span className="font-semibold text-[#0b0b0b]">{row.label}</span> - {row.description}
               </li>
             ))}
           </ul>

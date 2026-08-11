@@ -201,7 +201,7 @@ export function FilterBar({ filters, options, onChange, onReset }: {
               value={filters.codeId?.toString() ?? null}
               options={(options?.codes ?? []).map((code) => ({
                 value: String(code.id),
-                label: `${code.code} — ${code.description}`,
+                label: `${code.code} - ${code.description}`,
               }))}
               onChange={(value) => set({ codeId: numero(value) })}
             />

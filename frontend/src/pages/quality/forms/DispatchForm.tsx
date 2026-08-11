@@ -16,11 +16,12 @@ type SelectedPhoto = {
 }
 
 /** Relatório de Produto Coletado (seção 5.2): exige no mínimo duas fotos do carregamento. */
-export function DispatchForm({ csrfToken, options, onClose, onCreated }: {
+export function DispatchForm({ csrfToken, options, onClose, onCreated, inline = false }: {
   csrfToken: string
   options: QualityOptions
   onClose: () => void
   onCreated: (code: string) => void
+  inline?: boolean
 }) {
   const [dispatchDate, setDispatchDate] = useState(today)
   const [client, setClient] = useState("")
@@ -128,8 +129,13 @@ export function DispatchForm({ csrfToken, options, onClose, onCreated }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-start overflow-auto bg-black/45 p-4 py-8" role="dialog" aria-modal="true" aria-labelledby="dispatch-form-title">
-      <form className="mx-auto w-full max-w-3xl rounded-2xl bg-white p-6 text-[#0b0b0b] shadow-2xl" onSubmit={submit}>
+    <div
+      className={inline ? "mt-6 w-full pb-2" : "fixed inset-0 z-50 grid place-items-start overflow-auto bg-black/45 p-4 py-8"}
+      role={inline ? "region" : "dialog"}
+      aria-modal={inline ? undefined : true}
+      aria-labelledby="dispatch-form-title"
+    >
+      <form className={`mx-auto w-full max-w-3xl bg-white p-6 text-[#0b0b0b] ${inline ? "rounded-lg border border-black/10" : "rounded-2xl shadow-2xl"}`} onSubmit={submit}>
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 id="dispatch-form-title" className="text-xl font-semibold">Novo produto coletado</h2>

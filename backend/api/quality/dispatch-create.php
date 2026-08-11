@@ -7,7 +7,7 @@ require_once dirname(__DIR__, 2) . '/quality.php';
 require_once dirname(__DIR__, 2) . '/uploads.php';
 
 requireApiMethod('POST');
-$currentUser = requireApiPermission('quality.manage');
+$currentUser = requireApiPermission('quality.create_dispatch');
 
 // O formulário envia multipart por causa das fotos, então os campos chegam em $_POST.
 requireCsrfToken($_POST['csrfToken'] ?? null);

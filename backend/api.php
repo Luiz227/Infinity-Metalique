@@ -33,12 +33,16 @@ function requireApiMethod(string $method): void
 }
 
 /** Interrompe a requisição quando não há sessão ativa e devolve o usuário autenticado. */
-function requireApiUser(): array
+function requireApiUser(bool $allowMandatoryPasswordChange = false): array
 {
     $user = currentUser();
 
     if (!$user) {
         jsonResponse(['message' => 'Faça login para continuar.'], 401);
+    }
+
+    if (!$allowMandatoryPasswordChange && !empty($user['must_change_password'])) {
+        jsonResponse(['message' => 'Altere sua senha temporária para continuar.'], 428);
     }
 
     return $user;

@@ -9,7 +9,7 @@
 
 @theme {
   /* Fonte única do projeto. O sans-serif final é só a rede de segurança do
-     navegador caso a Inter não carregue — nenhuma outra família é escolhida. */
+     navegador caso a Inter não carregue - nenhuma outra família é escolhida. */
   --font-sans: "Inter", sans-serif;
   --color-metalique: #db0f0f;
 }

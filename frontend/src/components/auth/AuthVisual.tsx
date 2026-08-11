@@ -1,3 +1,4 @@
+import { DevelopmentNoticeLink } from "@/components/common/DevelopmentNoticeLink"
 import { AppLink } from "@/lib/router"
 
 export function AuthVisual({ accessRequest = false }: { accessRequest?: boolean }) {
@@ -23,8 +24,8 @@ export function AuthVisual({ accessRequest = false }: { accessRequest?: boolean 
         </AppLink>
         <nav className="navigation-links" aria-label="Navegação principal">
           <AppLink className="active" to="/">Home</AppLink>
-          <a href="#ajuda">Ajuda</a>
-          <a href="#contato">Contato</a>
+          <DevelopmentNoticeLink area="Ajuda">Ajuda</DevelopmentNoticeLink>
+          <DevelopmentNoticeLink area="Contato">Contato</DevelopmentNoticeLink>
         </nav>
       </header>
 

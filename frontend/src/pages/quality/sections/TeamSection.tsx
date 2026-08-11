@@ -1,11 +1,12 @@
 import { ChartCard } from "@/pages/quality/charts/ChartCard"
-import { RankingBars, TrendLine } from "@/pages/quality/charts/QualityCharts"
+import { RankingBars, ShareDonut, TrendLine } from "@/pages/quality/charts/QualityCharts"
 import { StatTile } from "@/pages/quality/charts/StatTile"
+import { CODE_COLORS } from "@/pages/quality/charts/tokens"
 import type { QualityChartSelection, QualityDashboard, QualityOptions } from "@/pages/quality/types"
 
 /**
  * Desempenho individual. Um RAP pode ter até três colaboradores, então o eixo
- * conta participações, não apontamentos — é o que permite instrução dirigida
+ * conta participações, não apontamentos - é o que permite instrução dirigida
  * em vez de treinamento genérico.
  */
 export function TeamSection({
@@ -31,6 +32,15 @@ export function TeamSection({
   const leading = data.reportsByEmployee[0]
   const leadingCode = data.reportsByCode[0]
   const selected = options?.employees.find((employee) => Number(employee.id) === employeeId)
+  const selectedEmployeeRow = selected
+    ? data.reportsByEmployee.find((row) => row.label === selected.name)
+    : null
+  // Ao clicar em uma pessoa, somente a barra dela permanece acesa. A resposta
+  // filtrada também traz colegas presentes nos mesmos RAPs, mas exibi-los em
+  // vermelho aqui faz parecer que várias pessoas foram selecionadas.
+  const employeeHighlight = selected && selectedEmployeeRow
+    ? [{ ...selectedEmployeeRow }]
+    : selection && highlight ? highlight.reportsByEmployee : null
   const selectedCode = options?.codes.find((code) => Number(code.id) === selection?.filters.codeId)?.code ?? null
   const selectedPeriod = selection?.filters.year && selection.filters.month
     ? `${selection.filters.year}-${String(selection.filters.month).padStart(2, "0")}`
@@ -43,12 +53,12 @@ export function TeamSection({
         <StatTile label="Colaboradores envolvidos" value={data.reportsByEmployee.length} hint="Pessoas com ao menos um apontamento" />
         <StatTile
           label="Mais recorrente"
-          value={leading?.label.split(" ")[0] ?? "—"}
+          value={leading?.label.split(" ")[0] ?? "-"}
           hint={leading ? `${leading.value} participações` : undefined}
         />
         <StatTile
           label="Código predominante"
-          value={leadingCode?.label ?? "—"}
+          value={leadingCode?.label ?? "-"}
           hint={leadingCode?.description ?? undefined}
         />
       </div>
@@ -56,13 +66,13 @@ export function TeamSection({
       <ChartCard
         title="Participações por colaborador"
         description="Clique em uma barra para destacar a participação daquele colaborador nos demais gráficos."
-        help="O eixo conta participações, não RAPs: um apontamento com três pessoas atribuídas conta uma vez para cada uma, então a soma das barras passa do total de RAPs. Quem trabalha mais horas aparece mais — o número serve para dirigir instrução, não para ranquear pessoas."
+        help="O eixo conta participações, não RAPs: um apontamento com três pessoas atribuídas conta uma vez para cada uma, então a soma das barras passa do total de RAPs. Quem trabalha mais horas aparece mais - o número serve para dirigir instrução, não para ranquear pessoas."
         table={{ head: ["Colaborador", "Participações"], rows: data.reportsByEmployee.map((row) => [row.label, row.value]) }}
       >
-        <RankingBars
-          data={data.reportsByEmployee}
-          measure="participações"
-          highlightData={selection && highlight ? highlight.reportsByEmployee : null}
+          <RankingBars
+            data={data.reportsByEmployee}
+            measure="participações"
+            highlightData={employeeHighlight}
           height={Math.max(280, data.reportsByEmployee.length * 26)}
           labelWidth={230}
           selectedLabel={selected?.name ?? null}
@@ -76,20 +86,22 @@ export function TeamSection({
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartCard
           title={selected ? `Códigos de ${selected.name}` : "Códigos do conjunto filtrado"}
-          description="Diz se o caso é falta de treinamento ou de atenção — e qual instrução dar."
-          help="Com um colaborador selecionado no gráfico acima, a parcela vermelha de cada barra é a participação dele naquele código, sobre o total apagado ao fundo. Códigos concentrados num só ponto indicam falta de treinamento específico; espalhados por todos, falta de atenção."
+          description="Diz se o caso é falta de treinamento ou de atenção - e qual instrução dar."
+          help="Com um colaborador selecionado no gráfico acima, cada fatia destaca a participação dele naquele código. Códigos concentrados num só ponto indicam falta de treinamento específico; espalhados por todos, falta de atenção."
           table={{
             head: ["Código", "Descrição", "RAPs"],
             rows: data.reportsByCode.map((row) => [row.label, row.description ?? "", row.value]),
           }}
         >
-          <RankingBars
+          <ShareDonut
             data={data.reportsByCode}
             measure="RAPs"
             highlightData={selection && highlight ? highlight.reportsByCode : null}
-            height={300}
-            labelWidth={80}
+            height={360}
             selectedLabel={selectedCode}
+            centerLabel="Total RAPs"
+            showValues
+            colorMap={CODE_COLORS}
             onSelect={onSelectCode}
           />
         </ChartCard>

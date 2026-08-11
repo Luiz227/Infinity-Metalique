@@ -10,7 +10,7 @@ requireApiPermission('users.manage');
 try {
     $connection = database();
     $rows = $connection->query(
-        'SELECT id, name, email, job_title, role, is_primary_admin, is_active,
+        'SELECT id, name, email, job_title, sector, role, is_primary_admin, is_active, must_change_password,
                 profile_photo, created_at
          FROM users
          ORDER BY is_primary_admin DESC, name ASC'
@@ -29,9 +29,11 @@ try {
             'name' => (string) $row['name'],
             'email' => (string) $row['email'],
             'job_title' => (string) $row['job_title'],
+            'sector' => (string) $row['sector'],
             'role' => $role,
             'is_primary_admin' => (bool) $row['is_primary_admin'],
             'is_active' => (bool) $row['is_active'],
+            'must_change_password' => (bool) $row['must_change_password'],
             'profile_photo' => $row['profile_photo'] ? (string) $row['profile_photo'] : null,
             'created_at' => (string) $row['created_at'],
             'permissions' => $role === 'admin'

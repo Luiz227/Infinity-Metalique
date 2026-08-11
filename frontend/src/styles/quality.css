@@ -33,6 +33,15 @@
     cursor: default;
 }
 
+/* Em telas estreitas a legenda e o tooltip identificam as fatias; esconder os
+   rótulos externos evita que quantidades e percentuais sejam cortados. */
+@media (max-width: 639px) {
+    .quality-donut-detailed .quality-donut-detail-label,
+    .quality-donut-detailed .recharts-pie-label-line {
+        display: none;
+    }
+}
+
 /* A cópia repetida do rodapé existe apenas na mídia impressa. */
 .quality-print-signatures {
     display: none;

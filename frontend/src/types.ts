@@ -2,6 +2,8 @@ export type PermissionKey =
   | "dashboard.view"
   | "quality.view"
   | "quality.manage"
+  | "quality.create_rap"
+  | "quality.create_dispatch"
   | "quality.raps"
   | "quality.units"
   | "quality.products"
@@ -14,11 +16,14 @@ export type PermissionKey =
 export type User = {
   id: number
   name: string
+  nickname: string | null
   email: string
   job_title: string
+  sector: string
   role: "admin" | "user"
   is_primary_admin: boolean
   is_active: boolean
+  must_change_password: boolean
   profile_photo: string | null
   permissions: PermissionKey[]
 }

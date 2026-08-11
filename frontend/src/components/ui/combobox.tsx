@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 
 /**
  * Campo de escolha com busca. Substitui o `<datalist>` nativo nos campos que
- * precisam aceitar um valor novo — um cliente que ainda não está cadastrado é
+ * precisam aceitar um valor novo - um cliente que ainda não está cadastrado é
  * criado justamente digitando aqui, então a entrada livre não pode se perder.
  */
 export function Combobox({

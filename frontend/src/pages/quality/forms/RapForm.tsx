@@ -10,11 +10,12 @@ import type { QualityOptions } from "@/pages/quality/types"
 const today = () => new Date().toISOString().slice(0, 10)
 
 /** Formulário de abertura de RAP, com os campos da seção 3.1 do processo. */
-export function RapForm({ csrfToken, options, onClose, onCreated }: {
+export function RapForm({ csrfToken, options, onClose, onCreated, inline = false }: {
   csrfToken: string
   options: QualityOptions
   onClose: () => void
   onCreated: (code: string) => void
+  inline?: boolean
 }) {
   const [reportDate, setReportDate] = useState(today)
   const [actionType, setActionType] = useState("CORREÇÃO")
@@ -74,8 +75,13 @@ export function RapForm({ csrfToken, options, onClose, onCreated }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-start overflow-auto bg-black/45 p-4 py-8" role="dialog" aria-modal="true" aria-labelledby="rap-form-title">
-      <form className="mx-auto w-full max-w-3xl rounded-2xl bg-white p-6 text-[#0b0b0b] shadow-2xl" onSubmit={submit}>
+    <div
+      className={inline ? "mt-6 w-full pb-2" : "fixed inset-0 z-50 grid place-items-start overflow-auto bg-black/45 p-4 py-8"}
+      role={inline ? "region" : "dialog"}
+      aria-modal={inline ? undefined : true}
+      aria-labelledby="rap-form-title"
+    >
+      <form className={`mx-auto w-full max-w-3xl bg-white p-6 text-[#0b0b0b] ${inline ? "rounded-lg border border-black/10" : "rounded-2xl shadow-2xl"}`} onSubmit={submit}>
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 id="rap-form-title" className="text-xl font-semibold">Novo apontamento (RAP)</h2>
@@ -160,7 +166,7 @@ export function RapForm({ csrfToken, options, onClose, onCreated }: {
               ariaLabel="Código do problema"
               value={qualityCodeId}
               onValueChange={setQualityCodeId}
-              options={options.codes.map((code) => ({ value: String(code.id), label: `${code.code} — ${code.description}` }))}
+              options={options.codes.map((code) => ({ value: String(code.id), label: `${code.code} - ${code.description}` }))}
             />
           </Field>
 
@@ -171,7 +177,7 @@ export function RapForm({ csrfToken, options, onClose, onCreated }: {
           </div>
 
           <div className="sm:col-span-2">
-            <Field label="Colaboradores envolvidos" required hint="Até três — é o que alimenta o indicador individual.">
+            <Field label="Colaboradores envolvidos" required hint="Até três - é o que alimenta o indicador individual.">
               <EmployeePicker employees={options.employees} value={employeeIds} onChange={setEmployeeIds} />
             </Field>
           </div>

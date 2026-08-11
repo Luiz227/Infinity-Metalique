@@ -17,6 +17,7 @@ import {
 import type { PieSectorShapeProps } from "recharts"
 
 import { type ChartConfig, ChartContainer } from "@/components/ui/chart"
+import { useChartExpanded } from "@/pages/quality/charts/ChartCard"
 import { formatPeriod } from "@/pages/quality/format"
 import type { GateValue, LabelValue, PeriodValue } from "@/pages/quality/types"
 import { BAR_SIZE, CATEGORICAL, INK, RADIUS_BAR, RADIUS_COLUMN, SERIES, axisProps } from "./tokens"
@@ -79,14 +80,14 @@ function rowsSignature(rows: HighlightRow[]): string {
 }
 
 /**
- * O Recharts recria as marcas sempre que os dados mudam — o `AnimatedItems` usa
+ * O Recharts recria as marcas sempre que os dados mudam - o `AnimatedItems` usa
  * o id da animação como `key`, então guardar o nó do DOM não adianta. Em vez
  * disso guardamos o destaque anterior e o devolvemos junto da linha: a marca
  * nova nasce exatamente onde a antiga estava e anima dali até o valor novo.
  *
  * Duas coisas seguram a animação, e as duas dependem de o render que não mudou
  * nada não contar: o ponto de partida só gira quando o dado muda, e a saída
- * mantém a mesma identidade enquanto o dado é o mesmo — assim o Recharts não
+ * mantém a mesma identidade enquanto o dado é o mesmo - assim o Recharts não
  * recria a marca à toa no meio dos 0,58s. Sem isso, o render que ele dispara ao
  * mexer o mouse (inevitável, pois o cursor está sobre a marca recém-clicada)
  * reiniciaria o progresso entregue à forma personalizada.
@@ -125,17 +126,20 @@ function Empty({ height }: { height: number }) {
  * Moldura comum dos visuais. A animação fica com o próprio Recharts, evitando
  * dois agendadores concorrentes atualizando os mesmos atributos do SVG.
  */
-function PowerChart({ height, selected, interactive, children }: {
+function PowerChart({ height, selected, interactive, className, children }: {
   height: number
   selected?: string
   interactive: boolean
+  className?: string
   children: ComponentProps<typeof ChartContainer>["children"]
 }) {
+  const expanded = useChartExpanded()
+  const displayHeight = expanded ? Math.max(height, window.innerHeight - 175) : height
   return (
     <ChartContainer
       config={chartConfig}
-      className={interactive ? "quality-interactive-chart" : undefined}
-      style={{ height }}
+      className={[interactive ? "quality-interactive-chart" : "", className ?? ""].filter(Boolean).join(" ") || undefined}
+      style={{ height: displayHeight }}
       data-selected={selected}
     >
       {children}
@@ -163,6 +167,13 @@ function percentage(selected: number, total: number): number {
   return Math.round(ratio(selected, total) * 100)
 }
 
+function detailedPercentage(selected: number, total: number): string {
+  return new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(ratio(selected, total) * 100)
+}
+
 function mergeLabelRows(data: LabelValue[], highlightData: LabelValue[] | null): HighlightRow[] {
   const highlights = new Map((highlightData ?? []).map((row) => [row.label, row.value]))
   return data.map((row) => ({
@@ -185,7 +196,7 @@ function mergePeriodRows(data: PeriodValue[], highlightData: PeriodValue[] | nul
 /**
  * Tooltip shadcn, no formato do Power BI: o item, o que ele significa e o que o
  * número mede. "COD 5" traz a causa que o código representa, o mês traz a data
- * por extenso, o modelo traz a linha de produto — e durante o cross-highlight o
+ * por extenso, o modelo traz a linha de produto - e durante o cross-highlight o
  * valor vira parcela sobre o total.
  */
 function ChartTooltip({ active, payload, label, measure = "", unit = "" }: {
@@ -209,7 +220,7 @@ function ChartTooltip({ active, payload, label, measure = "", unit = "" }: {
   const suffix = measure ? ` ${measure}` : ""
 
   // Derivada aqui, e não injetada na linha: a linha é o que vai para o Recharts,
-  // e marca recriada por mudança de dado volta ao `initial` do Motion — texto de
+  // e marca recriada por mudança de dado volta ao `initial` do Motion - texto de
   // apresentação no array de dados custaria a animação do recorte.
   const first = visible[0]?.payload
   const description = typeof first?.description === "string" && first.description !== ""
@@ -437,6 +448,7 @@ export function RankingBars({
   measure,
   selectedLabel = null,
   onSelect,
+  collapsedLimit,
 }: {
   data: LabelValue[]
   highlightData?: LabelValue[] | null
@@ -446,12 +458,21 @@ export function RankingBars({
   measure?: string
   selectedLabel?: string | null
   onSelect?: (label: string) => void
+  collapsedLimit?: number
 }) {
-  const rows = useHighlightTransition(mergeLabelRows(data, highlightData))
+  const expanded = useChartExpanded()
+  const visibleData = !expanded && collapsedLimit ? data.slice(0, collapsedLimit) : data
+  const visibleLabels = new Set(visibleData.map((row) => row.label))
+  const visibleHighlight = highlightData?.filter((row) => visibleLabels.has(row.label)) ?? null
+  const rows = useHighlightTransition(mergeLabelRows(visibleData, visibleHighlight))
   if (!data.length) return <Empty height={height} />
 
   return (
-    <PowerChart height={height} selected={selectedLabel ?? undefined} interactive={Boolean(onSelect)}>
+    <PowerChart
+      height={height}
+      selected={selectedLabel ?? undefined}
+      interactive={Boolean(onSelect)}
+    >
       <BarChart
         data={rows}
         layout="vertical"
@@ -459,7 +480,7 @@ export function RankingBars({
         barCategoryGap="22%"
         onClick={onSelect ? (state) => {
           const index = selectedIndex(state.activeTooltipIndex)
-          if (index !== null && data[index]) onSelect(data[index].label)
+          if (index !== null && visibleData[index]) onSelect(visibleData[index].label)
         } : undefined}
       >
         <XAxis type="number" hide />
@@ -489,19 +510,25 @@ export function RankingBars({
 }
 
 /** Evolução mensal com preenchimento vertical proporcional ao destaque. */
-export function TrendColumns({ data, highlightData = null, height = 260, measure, selectedPeriod = null, onSelect }: {
+export function TrendColumns({ data, highlightData = null, height = 260, measure, selectedPeriod = null, onSelect, compact = false }: {
   data: PeriodValue[]
   highlightData?: PeriodValue[] | null
   height?: number
   measure?: string
   selectedPeriod?: string | null
   onSelect?: (period: string) => void
+  compact?: boolean
 }) {
   const rows = useHighlightTransition(mergePeriodRows(data, highlightData))
   if (!data.length) return <Empty height={height} />
 
   return (
-    <PowerChart height={height} selected={selectedPeriod ?? undefined} interactive={Boolean(onSelect)}>
+    <PowerChart
+      height={height}
+      selected={selectedPeriod ?? undefined}
+      interactive={Boolean(onSelect)}
+      className={compact ? "mx-auto max-w-[1120px]" : undefined}
+    >
       <BarChart
         data={rows}
         margin={{ top: 28, right: 8, bottom: 4, left: 0 }}
@@ -519,7 +546,7 @@ export function TrendColumns({ data, highlightData = null, height = 260, measure
           dataKey="value"
           fill={SERIES}
           radius={RADIUS_COLUMN}
-          maxBarSize={BAR_SIZE}
+          maxBarSize={compact ? 30 : BAR_SIZE}
           isAnimationActive
           animationDuration={ANIMATION_DURATION}
           animationEasing="ease-out"
@@ -540,8 +567,11 @@ export function TrendLine({ data, highlightData = null, height = 260, measure, s
   onSelect?: (period: string) => void
 }) {
   if (!data.length) return <Empty height={height} />
-  const rows = mergePeriodRows(data, highlightData)
   const highlighting = highlightData !== null
+  const rows = mergePeriodRows(data, highlightData).map((row) => ({
+    ...row,
+    animatedValue: highlighting ? row.highlightValue : row.value,
+  }))
 
   return (
     <PowerChart height={height} selected={selectedPeriod ?? undefined} interactive={Boolean(onSelect)}>
@@ -560,31 +590,30 @@ export function TrendLine({ data, highlightData = null, height = 260, measure, s
         <Line
           type="monotone"
           dataKey="value"
-          stroke={highlighting ? INK.axis : SERIES}
+          stroke={INK.axis}
           strokeWidth={2}
           strokeLinecap="round"
           strokeLinejoin="round"
-          isAnimationActive
-          animationDuration={450}
-          animationEasing="ease-out"
-          dot={{ r: 4, fill: highlighting ? INK.axis : SERIES, stroke: INK.surface, strokeWidth: 2 }}
-          activeDot={{ r: 5, fill: SERIES, stroke: INK.surface, strokeWidth: 2 }}
+          strokeOpacity={highlighting ? 0.28 : 0}
+          isAnimationActive={false}
+          dot={highlighting ? { r: 4, fill: INK.axis, fillOpacity: 0.28, stroke: INK.surface, strokeWidth: 2 } : false}
+          activeDot={false}
         />
-        {highlighting && (
-          <Line
-            type="monotone"
-            dataKey="highlightValue"
-            stroke={SERIES}
-            strokeWidth={3}
-            connectNulls={false}
-            tooltipType="none"
-            isAnimationActive
-            animationDuration={450}
-            animationEasing="ease-out"
-            dot={{ r: 5, fill: SERIES, stroke: INK.surface, strokeWidth: 2 }}
-            activeDot={false}
-          />
-        )}
+        <Line
+          type="monotone"
+          dataKey="animatedValue"
+          stroke={SERIES}
+          strokeWidth={highlighting ? 3 : 2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          connectNulls={false}
+          tooltipType="none"
+          isAnimationActive
+          animationDuration={ANIMATION_DURATION}
+          animationEasing="ease-out"
+          dot={{ r: highlighting ? 5 : 4, fill: SERIES, stroke: INK.surface, strokeWidth: 2 }}
+          activeDot={false}
+        />
       </LineChart>
     </PowerChart>
   )
@@ -675,7 +704,7 @@ export function GateColumns({
 /**
  * Fatia da rosca no mesmo padrão das barras: o trilho apagado guarda o total e
  * uma cópia sólida cresce do anel interno até a espessura da parcela selecionada.
- * O recorte é feito por um círculo animado — assim a fatia preenche sem que o
+ * O recorte é feito por um círculo animado - assim a fatia preenche sem que o
  * gráfico precise de um segundo `<Pie>` sobreposto.
  */
 function DonutPowerSector({ props }: { props: AnimatedPieSectorProps }) {
@@ -716,12 +745,25 @@ function DonutPowerSector({ props }: { props: AnimatedPieSectorProps }) {
 }
 
 /** Rosca: a espessura colorida de cada fatia representa a porcentagem selecionada. */
-export function ShareDonut({ data, highlightData = null, height = 260, measure, selectedLabel = null, onSelect }: {
+export function ShareDonut({
+  data,
+  highlightData = null,
+  height = 260,
+  measure,
+  selectedLabel = null,
+  centerLabel,
+  showValues = false,
+  colorMap,
+  onSelect,
+}: {
   data: LabelValue[]
   highlightData?: LabelValue[] | null
   height?: number
   measure?: string
   selectedLabel?: string | null
+  centerLabel?: string
+  showValues?: boolean
+  colorMap?: Readonly<Record<string, string>>
   onSelect?: (label: string) => void
 }) {
   const rows = useHighlightTransition(mergeLabelRows(data, highlightData))
@@ -731,7 +773,12 @@ export function ShareDonut({ data, highlightData = null, height = 260, measure, 
   const highlighting = highlightData !== null
 
   return (
-    <PowerChart height={height} selected={selectedLabel ?? undefined} interactive={Boolean(onSelect)}>
+    <PowerChart
+      height={height}
+      selected={selectedLabel ?? undefined}
+      interactive={Boolean(onSelect)}
+      className={showValues ? "quality-donut-detailed" : undefined}
+    >
       <PieChart margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
         <Tooltip content={<ChartTooltip measure={measure} />} />
         <Legend
@@ -744,8 +791,8 @@ export function ShareDonut({ data, highlightData = null, height = 260, measure, 
           data={rows}
           dataKey="value"
           nameKey="label"
-          innerRadius="52%"
-          outerRadius="80%"
+          innerRadius={showValues ? "44%" : "52%"}
+          outerRadius={showValues ? "68%" : "80%"}
           paddingAngle={2}
           stroke={INK.surface}
           strokeWidth={2}
@@ -768,16 +815,22 @@ export function ShareDonut({ data, highlightData = null, height = 260, measure, 
             const y = cy + radius * Math.sin(-(props.midAngle ?? 0) * radian)
             const selected = row.__highlights.value ?? 0
             const text = highlighting
-              ? selected > 0 ? `${selected} · ${percentage(selected, value)}%` : ""
-              : `${Math.round((value / total) * 100)}%`
+              ? selected > 0
+                ? showValues
+                  ? `${selected} (${detailedPercentage(selected, value)}%)`
+                  : `${selected} · ${percentage(selected, value)}%`
+                : ""
+              : showValues
+                ? `${value} (${detailedPercentage(value, total)}%)`
+                : `${Math.round((value / total) * 100)}%`
 
             return (
-              <text x={x} y={y} fill={INK.secondary} fontSize={11} textAnchor={x > cx ? "start" : "end"} dominantBaseline="central">
+              <text className={showValues ? "quality-donut-detail-label" : undefined} x={x} y={y} fill={INK.secondary} fontSize={11} textAnchor={x > cx ? "start" : "end"} dominantBaseline="central">
                 {text}
               </text>
             )
           }}
-          labelLine={false}
+          labelLine={showValues ? { stroke: INK.muted, strokeWidth: 1 } : false}
           isAnimationActive
           animationDuration={ANIMATION_DURATION}
           animationEasing="ease-out"
@@ -790,12 +843,22 @@ export function ShareDonut({ data, highlightData = null, height = 260, measure, 
           {rows.map((row, index) => (
             <Cell
               key={row.label}
-              fill={CATEGORICAL[index % CATEGORICAL.length]}
+              fill={colorMap?.[row.label] ?? CATEGORICAL[index % CATEGORICAL.length]}
               stroke={INK.surface}
               strokeWidth={2}
             />
           ))}
         </Pie>
+        {centerLabel && (
+          <g className="pointer-events-none">
+            <text x="50%" y="43%" textAnchor="middle" dominantBaseline="central" fill={INK.primary} fontSize={30} fontWeight={700}>
+              {total}
+            </text>
+            <text x="50%" y="53%" textAnchor="middle" dominantBaseline="central" fill={INK.secondary} fontSize={12}>
+              {centerLabel}
+            </text>
+          </g>
+        )}
       </PieChart>
     </PowerChart>
   )

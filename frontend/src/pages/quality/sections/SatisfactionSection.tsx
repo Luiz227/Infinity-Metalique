@@ -42,8 +42,8 @@ export function SatisfactionSection({ data, highlight, selection, onSelectPeriod
 
       <ChartCard
         title="Coletas e reclamações por mês"
-        description="As duas séries dividem o mesmo eixo por serem a mesma unidade — um registro."
-        help="A distância entre as duas colunas de cada mês é a taxa de satisfação daquele período: reclamação sobre coleta. Um eixo só, sem escala secundária, porque as duas séries contam a mesma coisa — registros. Clique numa coluna para recortar o mês na tabela abaixo."
+        description="As duas séries dividem o mesmo eixo por serem a mesma unidade - um registro."
+        help="A distância entre as duas colunas de cada mês é a taxa de satisfação daquele período: reclamação sobre coleta. Um eixo só, sem escala secundária, porque as duas séries contam a mesma coisa - registros. Clique numa coluna para recortar o mês na tabela abaixo."
         table={{
           head: ["Mês", "Coletas", "Reclamações"],
           rows: data.dispatchesByPeriod.map((row) => [
@@ -85,10 +85,10 @@ export function SatisfactionSection({ data, highlight, selection, onSelectPeriod
               {data.complaints.map((row) => (
                 <tr key={row.id} className="border-b border-[#f0efec] last:border-0 align-top">
                   <td className="py-2 pr-3 text-[#52514e] [font-variant-numeric:tabular-nums]">{formatDate(row.complaint_date)}</td>
-                  <td className="py-2 pr-3 text-[#0b0b0b]">{row.client ?? "—"}</td>
-                  <td className="py-2 pr-3 text-[#52514e]">{row.machine_type ?? "—"}</td>
-                  <td className="py-2 pr-3 text-[#52514e]">{row.model ?? "—"}</td>
-                  <td className="py-2 text-[#52514e]">{row.problem ?? "—"}</td>
+                  <td className="py-2 pr-3 text-[#0b0b0b]">{row.client ?? "-"}</td>
+                  <td className="py-2 pr-3 text-[#52514e]">{row.machine_type ?? "-"}</td>
+                  <td className="py-2 pr-3 text-[#52514e]">{row.model ?? "-"}</td>
+                  <td className="py-2 text-[#52514e]">{row.problem ?? "-"}</td>
                 </tr>
               ))}
             </tbody>

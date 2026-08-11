@@ -11,7 +11,7 @@ function Row({ label, value, wide = false }: { label: string; value: string | nu
   return (
     <div className={`quality-print-row ${wide ? "col-span-2" : ""}`}>
       <p className="text-[10px] font-semibold uppercase tracking-wide text-[#898781]">{label}</p>
-      <p className="mt-0.5 text-sm text-[#0b0b0b]">{value || "—"}</p>
+      <p className="mt-0.5 text-sm text-[#0b0b0b]">{value || "-"}</p>
     </div>
   )
 }
@@ -35,7 +35,7 @@ function SignatureFooter({ secondLabel, createdBy, className = "" }: {
 
 /**
  * Folha A4 do RAP ou da coleta. A exportação em PDF é a própria caixa de
- * impressão do navegador — sem biblioteca nova, conforme a seção 7 do processo.
+ * impressão do navegador - sem biblioteca nova, conforme a seção 7 do processo.
  */
 export function PrintSheet({ report, dispatch, isLoading, onClose }: {
   report?: ReportDetail | null
@@ -110,7 +110,7 @@ export function PrintSheet({ report, dispatch, isLoading, onClose }: {
                 <Row label="Local da não conformidade" value={report.problem_type} />
                 <Row
                   label="Código do problema"
-                  value={report.quality_code ? `${report.quality_code} — ${report.quality_code_description ?? ""}` : null}
+                  value={report.quality_code ? `${report.quality_code} - ${report.quality_code_description ?? ""}` : null}
                   wide
                 />
                 <Row label="Descrição do ocorrido" value={report.description} wide />

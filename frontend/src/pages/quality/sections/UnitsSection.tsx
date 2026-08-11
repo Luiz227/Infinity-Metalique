@@ -33,7 +33,7 @@ export function UnitsSection({
         <StatTile label="Total de RAPs" value={data.cards.totalReports} hero hint="Apontamentos no filtro atual" />
         <StatTile
           label="Barracão com mais RAPs"
-          value={leadingShed?.label ?? "—"}
+          value={leadingShed?.label ?? "-"}
           hint={leadingShed ? `${leadingShed.value} apontamentos` : undefined}
         />
         <StatTile label="Barracões" value={data.reportsByShed.length} hint="Unidades com registro no período" />
@@ -44,7 +44,7 @@ export function UnitsSection({
         <ChartCard
           title="Participação por barracão"
           description="Onde os apontamentos se concentram."
-          help="A fatia é a parcela de RAPs de cada unidade sobre o total filtrado. Barracão maior produz mais e por isso aparece maior — compare a fatia com o volume produzido antes de concluir que a unidade vai mal. Clique numa fatia para ver esse barracão recortado nos demais gráficos."
+          help="A fatia é a parcela de RAPs de cada unidade sobre o total filtrado. Barracão maior produz mais e por isso aparece maior - compare a fatia com o volume produzido antes de concluir que a unidade vai mal. Clique numa fatia para ver esse barracão recortado nos demais gráficos."
           table={{ head: ["Barracão", "RAPs"], rows: data.reportsByShed.map((row) => [row.label, row.value]) }}
         >
           <ShareDonut

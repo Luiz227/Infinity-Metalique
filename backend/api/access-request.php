@@ -15,8 +15,9 @@ if (!is_string($submittedToken) || !validCsrfToken($submittedToken)) {
 try {
     $result = requestAccess(
         (string) ($data['name'] ?? ''),
-        (string) ($data['email'] ?? ''),
-        (string) ($data['password'] ?? '')
+        (string) ($data['sector'] ?? ''),
+        (string) ($data['jobTitle'] ?? ''),
+        (string) ($data['admissionDate'] ?? '')
     );
 } catch (PDOException) {
     jsonResponse(['message' => 'Não foi possível acessar o banco de dados. Verifique o MySQL do XAMPP.'], 503);

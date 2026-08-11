@@ -103,12 +103,12 @@ export function ReportsSection({
                 <tr key={row.id} className="border-b border-[#f0efec] last:border-0 align-top">
                   <td className="py-2 pr-3 font-medium text-[#0b0b0b] [font-variant-numeric:tabular-nums]">{row.code}</td>
                   <td className="py-2 pr-3 text-[#52514e] [font-variant-numeric:tabular-nums]">{formatDate(row.report_date)}</td>
-                  <td className="py-2 pr-3 text-[#0b0b0b]">{row.client ?? "—"}</td>
-                  <td className="py-2 pr-3 text-[#52514e]">{row.machine_type ?? "—"}{row.model ? ` · ${row.model}` : ""}</td>
-                  <td className="py-2 pr-3 text-[#52514e]">{row.shed ?? "—"}</td>
-                  <td className="py-2 pr-3 text-[#52514e]">{row.gate ?? "—"}</td>
-                  <td className="py-2 pr-3 text-[#52514e]" title={row.quality_code_description ?? ""}>{row.quality_code ?? "—"}</td>
-                  <td className="py-2 pr-3 text-[#52514e]">{row.employees ?? "—"}</td>
+                  <td className="py-2 pr-3 text-[#0b0b0b]">{row.client ?? "-"}</td>
+                  <td className="py-2 pr-3 text-[#52514e]">{row.machine_type ?? "-"}{row.model ? ` · ${row.model}` : ""}</td>
+                  <td className="py-2 pr-3 text-[#52514e]">{row.shed ?? "-"}</td>
+                  <td className="py-2 pr-3 text-[#52514e]">{row.gate ?? "-"}</td>
+                  <td className="py-2 pr-3 text-[#52514e]" title={row.quality_code_description ?? ""}>{row.quality_code ?? "-"}</td>
+                  <td className="py-2 pr-3 text-[#52514e]">{row.employees ?? "-"}</td>
                   <td className="py-2">
                     <div className="flex items-center gap-2">
                       <button
@@ -164,9 +164,9 @@ export function ReportsSection({
                 <tr key={row.id} className="border-b border-[#f0efec] last:border-0 align-top">
                   <td className="py-2 pr-3 font-medium text-[#0b0b0b] [font-variant-numeric:tabular-nums]">{row.code}</td>
                   <td className="py-2 pr-3 text-[#52514e] [font-variant-numeric:tabular-nums]">{formatDate(row.dispatch_date)}</td>
-                  <td className="py-2 pr-3 text-[#0b0b0b]">{row.client ?? "—"}</td>
-                  <td className="py-2 pr-3 text-[#52514e]">{row.machine_type ?? "—"}</td>
-                  <td className="py-2 pr-3 text-[#52514e]">{row.model ?? "—"}</td>
+                  <td className="py-2 pr-3 text-[#0b0b0b]">{row.client ?? "-"}</td>
+                  <td className="py-2 pr-3 text-[#52514e]">{row.machine_type ?? "-"}</td>
+                  <td className="py-2 pr-3 text-[#52514e]">{row.model ?? "-"}</td>
                   <td className="py-2 pr-3 text-[#52514e]">
                     <span className="inline-flex items-center gap-1">
                       <Camera className="size-3.5" aria-hidden="true" />

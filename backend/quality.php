@@ -269,7 +269,7 @@ function qualityDashboard(array $filters): array
     $latestPeriod = $reportsByPeriod === [] ? null : end($reportsByPeriod);
 
     $byGate = queryRows(
-        "SELECT DATE_FORMAT(r.report_date, '%Y-%m') AS period, COALESCE(r.gate, '—') AS gate, COUNT(*) AS total
+        "SELECT DATE_FORMAT(r.report_date, '%Y-%m') AS period, COALESCE(r.gate, '-') AS gate, COUNT(*) AS total
          FROM inspection_reports r{$reportWhere} GROUP BY period, gate ORDER BY period, gate",
         $reportParams
     );
@@ -278,7 +278,7 @@ function qualityDashboard(array $filters): array
         'cards' => [
             'totalReports' => $totalReports,
             'latestPeriodReports' => $latestPeriod['value'] ?? 0,
-            'latestPeriodLabel' => $latestPeriod['label'] ?? '—',
+            'latestPeriodLabel' => $latestPeriod['label'] ?? '-',
             'clients' => (int) queryValue(
                 "SELECT COUNT(DISTINCT r.client_id) FROM inspection_reports r{$reportWhere}",
                 $reportParams
@@ -314,7 +314,7 @@ function qualityDashboard(array $filters): array
         ],
         'reportsByPeriod' => $reportsByPeriod,
         'reportsByProblemType' => castSeries(queryRows(
-            "SELECT COALESCE(r.problem_type, '—') AS label, COUNT(*) AS value
+            "SELECT COALESCE(r.problem_type, '-') AS label, COUNT(*) AS value
              FROM inspection_reports r{$reportWhere} GROUP BY label ORDER BY value DESC",
             $reportParams
         )),
@@ -325,7 +325,7 @@ function qualityDashboard(array $filters): array
             $reportParams
         )),
         'reportsByShed' => castSeries(queryRows(
-            "SELECT COALESCE(r.shed, '—') AS label, COUNT(*) AS value
+            "SELECT COALESCE(r.shed, '-') AS label, COUNT(*) AS value
              FROM inspection_reports r{$reportWhere} GROUP BY label ORDER BY value DESC",
             $reportParams
         )),
@@ -338,10 +338,10 @@ function qualityDashboard(array $filters): array
         // A linha de produto vai junto: no gráfico o modelo é só um código, e o
         // tooltip precisa dizer de que máquina ele é.
         'reportsByModel' => castSeries(queryRows(
-            "SELECT COALESCE(r.model, '—') AS label, MAX(CONCAT('Linha ', t.name)) AS description, COUNT(*) AS value
+            "SELECT COALESCE(r.model, '-') AS label, MAX(CONCAT('Linha ', t.name)) AS description, COUNT(*) AS value
              FROM inspection_reports r
              LEFT JOIN machine_types t ON t.id = r.machine_type_id
-             {$reportWhere} GROUP BY label ORDER BY value DESC LIMIT 15",
+             {$reportWhere} GROUP BY label ORDER BY value DESC",
             $reportParams
         )),
         'reportsByMachineType' => castSeries(queryRows(
@@ -371,10 +371,10 @@ function qualityDashboard(array $filters): array
             $dispatchParams
         )),
         'dispatchesByModel' => castSeries(queryRows(
-            "SELECT COALESCE(d.model, '—') AS label, MAX(CONCAT('Linha ', t.name)) AS description, COUNT(*) AS value
+            "SELECT COALESCE(d.model, '-') AS label, MAX(CONCAT('Linha ', t.name)) AS description, COUNT(*) AS value
              FROM machine_dispatches d
              LEFT JOIN machine_types t ON t.id = d.machine_type_id
-             {$dispatchWhere} GROUP BY label ORDER BY value DESC LIMIT 15",
+             {$dispatchWhere} GROUP BY label ORDER BY value DESC",
             $dispatchParams
         )),
         'complaintsByPeriod' => periodSeries(queryRows(
