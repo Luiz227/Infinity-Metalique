@@ -1,5 +1,4 @@
-import { type ComponentProps, useEffect, useId, useRef, useState } from "react"
-import { MotionConfig, animate, motion } from "motion/react"
+import { type ComponentProps, useId, useRef } from "react"
 import {
   Bar,
   BarChart,
@@ -27,7 +26,7 @@ const chartConfig = {
   selected: { label: "Selecionado", color: SERIES },
 } satisfies ChartConfig
 
-const MOTION = { duration: 0.58, ease: [0.22, 1, 0.36, 1] } as const
+const ANIMATION_DURATION = 580
 
 /** Estado do destaque numa linha, guardado para a marca seguinte entrar de onde esta parou. */
 type HighlightState = { highlighting: boolean; highlights: Record<string, number> }
@@ -47,6 +46,15 @@ type ShapeProps = {
   fill?: string
   dataKey?: string | number
   payload?: HighlightRow
+  animationElapsedTime?: number
+  isAnimating?: boolean
+  isEntrance?: boolean
+}
+
+type AnimatedPieSectorProps = PieSectorShapeProps & {
+  animationElapsedTime?: number
+  isAnimating?: boolean
+  isEntrance?: boolean
 }
 
 function rowKey(row: HighlightRow): string {
@@ -80,8 +88,8 @@ function rowsSignature(rows: HighlightRow[]): string {
  * nada não contar: o ponto de partida só gira quando o dado muda, e a saída
  * mantém a mesma identidade enquanto o dado é o mesmo — assim o Recharts não
  * recria a marca à toa no meio dos 0,58s. Sem isso, o render que ele dispara ao
- * mexer o mouse (inevitável, o cursor está sobre a marca recém-clicada) recriava
- * a marca com `initial` igual ao `animate`: ela nascia já preenchida.
+ * mexer o mouse (inevitável, pois o cursor está sobre a marca recém-clicada)
+ * reiniciaria o progresso entregue à forma personalizada.
  */
 function useHighlightTransition(rows: HighlightRow[]): HighlightRow[] {
   const previous = useRef<Map<string, HighlightState> | null>(null)
@@ -114,9 +122,8 @@ function Empty({ height }: { height: number }) {
 }
 
 /**
- * Moldura comum dos visuais. O `MotionConfig` fica aqui, uma vez por gráfico:
- * o preenchimento animado é a leitura do recorte, não enfeite, por isso ele roda
- * mesmo com "reduzir movimento" ligado.
+ * Moldura comum dos visuais. A animação fica com o próprio Recharts, evitando
+ * dois agendadores concorrentes atualizando os mesmos atributos do SVG.
  */
 function PowerChart({ height, selected, interactive, children }: {
   height: number
@@ -125,16 +132,14 @@ function PowerChart({ height, selected, interactive, children }: {
   children: ComponentProps<typeof ChartContainer>["children"]
 }) {
   return (
-    <MotionConfig reducedMotion="never">
-      <ChartContainer
-        config={chartConfig}
-        className={interactive ? "quality-interactive-chart" : undefined}
-        style={{ height }}
-        data-selected={selected}
-      >
-        {children}
-      </ChartContainer>
-    </MotionConfig>
+    <ChartContainer
+      config={chartConfig}
+      className={interactive ? "quality-interactive-chart" : undefined}
+      style={{ height }}
+      data-selected={selected}
+    >
+      {children}
+    </ChartContainer>
   )
 }
 
@@ -143,26 +148,15 @@ function ratio(selected: number, total: number): number {
   return Math.max(0, Math.min(1, selected / total))
 }
 
-/**
- * Interpola o número exibido junto com a marca. Sem isso o rótulo trocaria de
- * golpe (42 → 12) enquanto a barra ainda está deslizando até a parcela nova.
- */
-function useCountUp(to: number, from: number): number {
-  const [shown, setShown] = useState(from)
-  const current = useRef(from)
+function interpolate(from: number, to: number, progress: number): number {
+  return from + (to - from) * Math.max(0, Math.min(1, progress))
+}
 
-  useEffect(() => {
-    const controls = animate(current.current, to, {
-      ...MOTION,
-      onUpdate: (value) => {
-        current.current = value
-        setShown(Math.round(value))
-      },
-    })
-    return () => controls.stop()
-  }, [to])
-
-  return shown
+/** Progresso normalizado entregue pelo motor de animação nativo do Recharts. */
+function shapeProgress(props: { animationElapsedTime?: number; isAnimating?: boolean }): number {
+  if (!props.isAnimating) return 1
+  const progress = Number(props.animationElapsedTime ?? 1)
+  return Number.isFinite(progress) ? Math.max(0, Math.min(1, progress)) : 1
 }
 
 function percentage(selected: number, total: number): number {
@@ -275,70 +269,72 @@ function HorizontalPowerBar({ props }: { props: ShapeProps }) {
   const highlighting = Boolean(row?.__highlighting)
   const wasHighlighting = Boolean(row?.__from?.highlighting)
   const previousSelected = row?.__from?.highlights[seriesKey] ?? 0
-
-  const visibleWidth = highlighting ? width * ratio(selected, total) : width
+  const progress = shapeProgress(props)
+  const targetRatio = highlighting ? ratio(selected, total) : 1
+  const startRatio = row?.__from ? fromRatio(row, seriesKey, total) : targetRatio
+  const visibleWidth = width * interpolate(startRatio, targetRatio, progress)
   const visibleValue = highlighting ? selected : total
-  const fromWidth = width * fromRatio(row, seriesKey, total)
   const fromValue = row?.__from ? (wasHighlighting ? previousSelected : total) : 0
-  const shownValue = useCountUp(visibleValue, fromValue)
+  const shownValue = Math.round(interpolate(fromValue, visibleValue, progress))
+  const backgroundOpacity = interpolate(wasHighlighting ? 0.16 : 0, highlighting ? 0.16 : 0, progress)
+  const percentageOpacity = interpolate(
+    wasHighlighting && previousSelected > 0 ? 1 : 0,
+    highlighting && total > 0 && selected > 0 ? 1 : 0,
+    progress,
+  )
+  const valueLabelWidth = Math.max(8, String(shownValue).length * 7)
+  const valueFitsInside = visibleWidth >= valueLabelWidth + 10
+  const valueX = valueFitsInside ? x + visibleWidth / 2 : x + visibleWidth + 7
+  const percentageOffset = valueFitsInside ? 7 : valueLabelWidth + 14
 
   return (
     <g>
-      <motion.rect
+      <rect
         x={x}
         y={y}
         width={width}
         height={height}
         rx={4}
         fill={color}
-        initial={{ opacity: wasHighlighting ? 0.16 : 0 }}
-        animate={{ opacity: highlighting ? 0.16 : 0 }}
-        transition={MOTION}
+        opacity={backgroundOpacity}
       />
-      <motion.rect
+      <rect
         x={x}
         y={y}
         height={height}
         rx={4}
         fill={color}
-        initial={{ width: fromWidth }}
-        animate={{ width: visibleWidth }}
-        transition={MOTION}
+        width={visibleWidth}
       />
-      <motion.text
+      <text
+        x={valueX}
         y={y + height / 2}
-        fill="#ffffff"
+        fill={valueFitsInside ? "#ffffff" : INK.secondary}
         fontSize={11}
         fontWeight={700}
-        textAnchor="middle"
+        textAnchor={valueFitsInside ? "middle" : "start"}
         dominantBaseline="central"
         paintOrder="stroke"
-        stroke={color}
-        strokeWidth={2}
+        stroke={valueFitsInside ? color : INK.surface}
+        strokeWidth={valueFitsInside ? 2 : 3}
         strokeLinejoin="round"
-        initial={{ x: x + fromWidth / 2, opacity: fromValue > 0 && fromWidth > 0 ? 1 : 0 }}
-        animate={{ x: x + visibleWidth / 2, opacity: visibleValue > 0 && visibleWidth > 0 ? 1 : 0 }}
-        transition={MOTION}
+        opacity={shownValue > 0 && visibleWidth > 0 ? 1 : 0}
         style={{ pointerEvents: "none" }}
       >
         {shownValue}
-      </motion.text>
-      <motion.text
+      </text>
+      <text
+        x={x + visibleWidth + percentageOffset}
         y={y + height / 2}
         fill={INK.secondary}
         fontSize={11}
         fontWeight={600}
         dominantBaseline="central"
-        initial={{ x: x + fromWidth + 7, opacity: wasHighlighting && previousSelected > 0 ? 1 : 0 }}
-        animate={{
-          x: x + visibleWidth + 7,
-          opacity: highlighting && total > 0 && selected > 0 ? 1 : 0,
-        }}
-        transition={MOTION}
+        opacity={percentageOpacity}
         style={{ pointerEvents: "none" }}
       >
         {percentage(selected, total)}%
-      </motion.text>
+      </text>
     </g>
   )
 }
@@ -356,39 +352,43 @@ function VerticalPowerBar({ props }: { props: ShapeProps }) {
   const highlighting = Boolean(row?.__highlighting)
   const wasHighlighting = Boolean(row?.__from?.highlighting)
   const previousSelected = row?.__from?.highlights[seriesKey] ?? 0
-
-  const visibleHeight = highlighting ? height * ratio(selected, total) : height
+  const progress = shapeProgress(props)
+  const targetRatio = highlighting ? ratio(selected, total) : 1
+  const startRatio = row?.__from ? fromRatio(row, seriesKey, total) : targetRatio
+  const visibleHeight = height * interpolate(startRatio, targetRatio, progress)
   const visibleTop = y + height - visibleHeight
   const visibleValue = highlighting ? selected : total
-  const fromHeight = height * fromRatio(row, seriesKey, total)
-  const fromTop = y + height - fromHeight
   const fromValue = row?.__from ? (wasHighlighting ? previousSelected : total) : 0
-  const shownValue = useCountUp(visibleValue, fromValue)
+  const shownValue = Math.round(interpolate(fromValue, visibleValue, progress))
+  const backgroundOpacity = interpolate(wasHighlighting ? 0.16 : 0, highlighting ? 0.16 : 0, progress)
+  const percentageOpacity = interpolate(
+    wasHighlighting && previousSelected > 0 ? 1 : 0,
+    highlighting && total > 0 && selected > 0 ? 1 : 0,
+    progress,
+  )
 
   return (
     <g>
-      <motion.rect
+      <rect
         x={x}
         y={y}
         width={width}
         height={height}
         rx={4}
         fill={color}
-        initial={{ opacity: wasHighlighting ? 0.16 : 0 }}
-        animate={{ opacity: highlighting ? 0.16 : 0 }}
-        transition={MOTION}
+        opacity={backgroundOpacity}
       />
-      <motion.rect
+      <rect
         x={x}
+        y={visibleTop}
         width={width}
         rx={4}
         fill={color}
-        initial={{ y: fromTop, height: fromHeight }}
-        animate={{ y: visibleTop, height: visibleHeight }}
-        transition={MOTION}
+        height={visibleHeight}
       />
-      <motion.text
+      <text
         x={x + width / 2}
+        y={visibleTop + visibleHeight / 2}
         fill="#ffffff"
         fontSize={10}
         fontWeight={700}
@@ -398,45 +398,35 @@ function VerticalPowerBar({ props }: { props: ShapeProps }) {
         stroke={color}
         strokeWidth={2}
         strokeLinejoin="round"
-        initial={{ y: fromTop + fromHeight / 2, opacity: fromValue > 0 && fromHeight > 0 ? 1 : 0 }}
-        animate={{
-          y: visibleTop + visibleHeight / 2,
-          opacity: visibleValue > 0 && visibleHeight > 0 ? 1 : 0,
-        }}
-        transition={MOTION}
+        opacity={shownValue > 0 && visibleHeight > 0 ? 1 : 0}
         style={{ pointerEvents: "none" }}
       >
         {shownValue}
-      </motion.text>
-      <motion.text
+      </text>
+      <text
         x={x + width / 2}
+        y={visibleTop - 6}
         fill={INK.secondary}
         fontSize={10}
         fontWeight={600}
         textAnchor="middle"
-        initial={{ y: fromTop - 6, opacity: wasHighlighting && previousSelected > 0 ? 1 : 0 }}
-        animate={{
-          y: visibleTop - 6,
-          opacity: highlighting && total > 0 && selected > 0 ? 1 : 0,
-        }}
-        transition={MOTION}
+        opacity={percentageOpacity}
         style={{ pointerEvents: "none" }}
       >
         {percentage(selected, total)}%
-      </motion.text>
+      </text>
     </g>
   )
 }
 
 /**
  * Os renderizadores de forma ficam no módulo, e não em arrows dentro do JSX.
- * Uma função nova a cada render faz o Recharts recriar as marcas, e marca
- * recriada volta ao `initial` do Motion — a animação reiniciaria a cada clique.
- * Série e cor vêm de `dataKey`/`fill`, que o Recharts já entrega na forma.
+ * Uma função estável preserva o histórico do motor nativo do Recharts entre
+ * renders. Série e cor vêm de `dataKey`/`fill`, já entregues à forma.
  */
 const renderHorizontalBar = (props: unknown) => <HorizontalPowerBar props={props as ShapeProps} />
 const renderVerticalBar = (props: unknown) => <VerticalPowerBar props={props as ShapeProps} />
-const renderDonutSector = (props: unknown) => <DonutPowerSector props={props as PieSectorShapeProps} />
+const renderDonutSector = (props: unknown) => <DonutPowerSector props={props as AnimatedPieSectorProps} />
 
 /** Ranking horizontal com o total apagado e a parcela selecionada por cima. */
 export function RankingBars({
@@ -477,6 +467,7 @@ export function RankingBars({
           type="category"
           dataKey="label"
           width={labelWidth}
+          interval={0}
           axisLine={false}
           {...axisProps}
           tick={{ fill: INK.secondary, fontSize: 12 }}
@@ -487,7 +478,9 @@ export function RankingBars({
           fill={SERIES}
           radius={RADIUS_BAR}
           maxBarSize={BAR_SIZE}
-          isAnimationActive={false}
+          isAnimationActive
+          animationDuration={ANIMATION_DURATION}
+          animationEasing="ease-out"
           shape={renderHorizontalBar}
         />
       </BarChart>
@@ -527,7 +520,9 @@ export function TrendColumns({ data, highlightData = null, height = 260, measure
           fill={SERIES}
           radius={RADIUS_COLUMN}
           maxBarSize={BAR_SIZE}
-          isAnimationActive={false}
+          isAnimationActive
+          animationDuration={ANIMATION_DURATION}
+          animationEasing="ease-out"
           shape={renderVerticalBar}
         />
       </BarChart>
@@ -665,7 +660,9 @@ export function GateColumns({
               fill={color}
               radius={RADIUS_COLUMN}
               maxBarSize={BAR_SIZE}
-              isAnimationActive={false}
+              isAnimationActive
+              animationDuration={ANIMATION_DURATION}
+              animationEasing="ease-out"
               shape={renderVerticalBar}
             />
           )
@@ -681,7 +678,7 @@ export function GateColumns({
  * O recorte é feito por um círculo animado — assim a fatia preenche sem que o
  * gráfico precise de um segundo `<Pie>` sobreposto.
  */
-function DonutPowerSector({ props }: { props: PieSectorShapeProps }) {
+function DonutPowerSector({ props }: { props: AnimatedPieSectorProps }) {
   const clipId = useId().replace(/:/g, "")
   const row = props.payload as HighlightRow | undefined
   const total = Number(props.value ?? 0)
@@ -691,25 +688,22 @@ function DonutPowerSector({ props }: { props: PieSectorShapeProps }) {
   const inner = Number(props.innerRadius ?? 0)
   const outer = Number(props.outerRadius ?? 0)
   const thickness = (fraction: number) => inner + (outer - inner) * fraction
-  const filled = highlighting ? thickness(ratio(selected, total)) : outer
+  const progress = shapeProgress(props)
+  const targetFilled = highlighting ? thickness(ratio(selected, total)) : outer
   const fromFilled = thickness(fromRatio(row, "value", total))
+  const filled = interpolate(fromFilled, targetFilled, progress)
+  const opacity = interpolate(wasHighlighting ? 0.16 : 1, highlighting ? 0.16 : 1, progress)
 
   return (
     <g>
-      <motion.g
-        initial={{ opacity: wasHighlighting ? 0.16 : 1 }}
-        animate={{ opacity: highlighting ? 0.16 : 1 }}
-        transition={MOTION}
-      >
+      <g opacity={opacity}>
         <Sector {...props} stroke="none" />
-      </motion.g>
+      </g>
       <clipPath id={clipId}>
-        <motion.circle
+        <circle
           cx={props.cx}
           cy={props.cy}
-          initial={{ r: fromFilled }}
-          animate={{ r: filled }}
-          transition={MOTION}
+          r={filled}
         />
       </clipPath>
       <g clipPath={`url(#${clipId})`}>
@@ -784,7 +778,9 @@ export function ShareDonut({ data, highlightData = null, height = 260, measure, 
             )
           }}
           labelLine={false}
-          isAnimationActive={false}
+          isAnimationActive
+          animationDuration={ANIMATION_DURATION}
+          animationEasing="ease-out"
           shape={renderDonutSector}
           onClick={onSelect ? (entry) => {
             const row = entry.payload as HighlightRow | undefined
@@ -864,7 +860,9 @@ export function DispatchVsComplaints({
           fill={CATEGORICAL[1]}
           radius={RADIUS_COLUMN}
           maxBarSize={BAR_SIZE}
-          isAnimationActive={false}
+          isAnimationActive
+          animationDuration={ANIMATION_DURATION}
+          animationEasing="ease-out"
           shape={renderVerticalBar}
         />
         <Bar
@@ -872,7 +870,9 @@ export function DispatchVsComplaints({
           fill={CATEGORICAL[0]}
           radius={RADIUS_COLUMN}
           maxBarSize={BAR_SIZE}
-          isAnimationActive={false}
+          isAnimationActive
+          animationDuration={ANIMATION_DURATION}
+          animationEasing="ease-out"
           shape={renderVerticalBar}
         />
       </BarChart>

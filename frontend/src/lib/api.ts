@@ -8,8 +8,8 @@ export async function readJson<T>(response: Response): Promise<T> {
   return payload
 }
 
-export async function getJson<T>(url: string): Promise<T> {
-  const response = await fetch(url, { credentials: "include" })
+export async function getJson<T>(url: string, init: RequestInit = {}): Promise<T> {
+  const response = await fetch(url, { ...init, credentials: "include" })
   return readJson<T>(response)
 }
 

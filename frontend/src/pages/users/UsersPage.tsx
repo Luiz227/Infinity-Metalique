@@ -136,6 +136,7 @@ export function UsersPage({ csrfToken }: { csrfToken: string }) {
           next.add("quality.view")
           next.add("quality.raps")
           next.add("quality.dispatches")
+          next.add("quality.records")
         }
       }
 

@@ -524,6 +524,74 @@ function findMachineDispatch(int $id): ?array
     return $dispatch;
 }
 
+/** Exclui um RAP e seus vínculos de colaboradores, removidos por cascata. */
+function deleteInspectionReport(int $id): ?string
+{
+    $connection = database();
+    $connection->beginTransaction();
+
+    try {
+        $query = $connection->prepare(
+            'SELECT code FROM inspection_reports WHERE id = :id FOR UPDATE'
+        );
+        $query->execute(['id' => $id]);
+        $code = $query->fetchColumn();
+
+        if ($code === false) {
+            $connection->rollBack();
+            return null;
+        }
+
+        $connection->prepare('DELETE FROM inspection_reports WHERE id = :id')
+            ->execute(['id' => $id]);
+        $connection->commit();
+
+        return (string) $code;
+    } catch (Throwable $error) {
+        if ($connection->inTransaction()) {
+            $connection->rollBack();
+        }
+        throw $error;
+    }
+}
+
+/** Exclui um RETIR e devolve as fotos que devem ser removidas do disco. */
+function deleteMachineDispatch(int $id): ?array
+{
+    $connection = database();
+    $connection->beginTransaction();
+
+    try {
+        $query = $connection->prepare(
+            'SELECT code FROM machine_dispatches WHERE id = :id FOR UPDATE'
+        );
+        $query->execute(['id' => $id]);
+        $code = $query->fetchColumn();
+
+        if ($code === false) {
+            $connection->rollBack();
+            return null;
+        }
+
+        $photoQuery = $connection->prepare(
+            'SELECT path FROM machine_dispatch_photos WHERE machine_dispatch_id = :id ORDER BY position'
+        );
+        $photoQuery->execute(['id' => $id]);
+        $photos = array_map('strval', $photoQuery->fetchAll(PDO::FETCH_COLUMN));
+
+        $connection->prepare('DELETE FROM machine_dispatches WHERE id = :id')
+            ->execute(['id' => $id]);
+        $connection->commit();
+
+        return ['code' => (string) $code, 'photos' => $photos];
+    } catch (Throwable $error) {
+        if ($connection->inTransaction()) {
+            $connection->rollBack();
+        }
+        throw $error;
+    }
+}
+
 /** Localiza ou cria o cliente pelo nome digitado, reaproveitando a chave normalizada. */
 function clientIdForName(string $name): ?int
 {

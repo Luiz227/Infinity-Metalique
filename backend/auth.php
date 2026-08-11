@@ -29,8 +29,8 @@ function systemPermissions(): array
             'description' => 'Consultar indicadores, registros e documentos da Qualidade.',
         ],
         'quality.manage' => [
-            'label' => 'Lançar dados da Qualidade',
-            'description' => 'Criar RAPs e registrar novas coletas.',
+            'label' => 'Gerenciar dados da Qualidade',
+            'description' => 'Criar e excluir RAPs e registros de produtos coletados.',
         ],
         'quality.raps' => [
             'label' => 'RAPs',
@@ -78,10 +78,24 @@ function userPermissions(PDO $connection, int $userId, string $role): array
     );
     $query->execute(['user_id' => $userId]);
 
-    return array_values(array_intersect(
+    $permissions = array_values(array_intersect(
         array_map('strval', $query->fetchAll(PDO::FETCH_COLUMN)),
         array_keys(systemPermissions())
     ));
+
+    // A gestão da Qualidade precisa da listagem onde RAPs e RETIR são
+    // consultados e excluídos. A expansão também contempla supervisores
+    // cadastrados antes de Registros passar a fazer parte dessa permissão.
+    if (in_array('quality.manage', $permissions, true)) {
+        $permissions = array_merge($permissions, [
+            'quality.view',
+            'quality.raps',
+            'quality.dispatches',
+            'quality.records',
+        ]);
+    }
+
+    return array_values(array_unique($permissions));
 }
 
 /** Converte uma linha do banco no formato público compartilhado com o React. */

@@ -55,7 +55,12 @@ if ($role === 'admin') {
     $permissions = array_keys(systemPermissions());
 } else {
     if (in_array('quality.manage', $permissions, true)) {
-        $permissions = array_merge($permissions, ['quality.view', 'quality.raps', 'quality.dispatches']);
+        $permissions = array_merge($permissions, [
+            'quality.view',
+            'quality.raps',
+            'quality.dispatches',
+            'quality.records',
+        ]);
     }
 
     if (in_array('quality.view', $permissions, true)

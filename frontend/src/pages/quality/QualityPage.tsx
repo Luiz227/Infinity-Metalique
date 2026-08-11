@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { ClipboardList, LoaderCircle, MousePointerClick, PackagePlus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { getJson } from "@/lib/api"
+import { getJson, postJson } from "@/lib/api"
 import { FilterBar } from "@/pages/quality/FilterBar"
 import { DispatchForm } from "@/pages/quality/forms/DispatchForm"
 import { RapForm } from "@/pages/quality/forms/RapForm"
@@ -61,10 +61,13 @@ export function QualityPage({ csrfToken, canManage, permissions, tabsInHeader }:
   const [dashboard, setDashboard] = useState<QualityDashboard | null>(null)
   const [highlightDashboard, setHighlightDashboard] = useState<QualityDashboard | null>(null)
   const [chartSelection, setChartSelection] = useState<QualityChartSelection | null>(null)
+  const [chartEpoch, setChartEpoch] = useState(0)
   const [isHighlightLoading, setIsHighlightLoading] = useState(false)
   const [reports, setReports] = useState<Paginated<ReportRow> | null>(null)
   const [dispatches, setDispatches] = useState<Paginated<DispatchRow> | null>(null)
+  const [recordDispatches, setRecordDispatches] = useState<Paginated<DispatchRow> | null>(null)
   const [reportsPage, setReportsPage] = useState(1)
+  const [dispatchesPage, setDispatchesPage] = useState(1)
   const [isFetching, setIsFetching] = useState(true)
   const [error, setError] = useState("")
   const [notice, setNotice] = useState("")
@@ -72,6 +75,7 @@ export function QualityPage({ csrfToken, canManage, permissions, tabsInHeader }:
   const [printTarget, setPrintTarget] = useState<PrintTarget | null>(null)
   const [printReport, setPrintReport] = useState<ReportDetail | null>(null)
   const [printDispatch, setPrintDispatch] = useState<DispatchDetail | null>(null)
+  const loadController = useRef<AbortController | null>(null)
   const hasSectionPermissions = TABS.some((item) => permissions.includes(item.permission))
   const visibleTabs = hasSectionPermissions
     ? TABS.filter((item) => permissions.includes(item.permission))
@@ -100,6 +104,27 @@ export function QualityPage({ csrfToken, canManage, permissions, tabsInHeader }:
     window.dispatchEvent(new CustomEvent("metalique:quality-tab-changed", { detail: tab }))
   }, [tab])
 
+  // Navegadores podem suspender requestAnimationFrame quando a aba fica em
+  // segundo plano. Remontar os SVGs ao voltar acorda o motor do Recharts sem
+  // perder filtros, seleção ou dados já carregados.
+  useEffect(() => {
+    const resumeCharts = () => {
+      if (document.visibilityState === "visible") {
+        setChartEpoch((current) => current + 1)
+      }
+    }
+
+    document.addEventListener("visibilitychange", resumeCharts)
+    window.addEventListener("focus", resumeCharts)
+    window.addEventListener("pageshow", resumeCharts)
+
+    return () => {
+      document.removeEventListener("visibilitychange", resumeCharts)
+      window.removeEventListener("focus", resumeCharts)
+      window.removeEventListener("pageshow", resumeCharts)
+    }
+  }, [])
+
   useEffect(() => {
     getJson<QualityOptions>("/backend/api/quality/options.php")
       .then(setOptions)
@@ -107,57 +132,93 @@ export function QualityPage({ csrfToken, canManage, permissions, tabsInHeader }:
   }, [])
 
   const load = useCallback(async () => {
+    loadController.current?.abort()
+    const controller = new AbortController()
+    loadController.current = controller
+
     setIsFetching(true)
     setError("")
     const query = filtersToQuery(filters)
     const pageSeparator = query ? "&" : "?"
 
     try {
-      const [dashboardData, reportsData, dispatchesData] = await Promise.all([
-        getJson<QualityDashboard>(`/backend/api/quality/dashboard.php${query}`),
-        getJson<Paginated<ReportRow>>(`/backend/api/quality/reports.php${query}${pageSeparator}page=${reportsPage}`),
-        getJson<Paginated<DispatchRow>>(`/backend/api/quality/dispatches.php${query}`),
+      const latestDispatchesRequest = getJson<Paginated<DispatchRow>>(
+        `/backend/api/quality/dispatches.php${query}${pageSeparator}page=1`,
+        { signal: controller.signal },
+      )
+      const recordDispatchesRequest = dispatchesPage === 1
+        ? latestDispatchesRequest
+        : getJson<Paginated<DispatchRow>>(
+            `/backend/api/quality/dispatches.php${query}${pageSeparator}page=${dispatchesPage}`,
+            { signal: controller.signal },
+          )
+
+      const [dashboardData, reportsData, dispatchesData, recordDispatchesData] = await Promise.all([
+        getJson<QualityDashboard>(`/backend/api/quality/dashboard.php${query}`, { signal: controller.signal }),
+        getJson<Paginated<ReportRow>>(
+          `/backend/api/quality/reports.php${query}${pageSeparator}page=${reportsPage}`,
+          { signal: controller.signal },
+        ),
+        latestDispatchesRequest,
+        recordDispatchesRequest,
       ])
+
+      if (controller.signal.aborted || loadController.current !== controller) return
+
       setDashboard(dashboardData)
       setReports(reportsData)
       setDispatches(dispatchesData)
+      setRecordDispatches(recordDispatchesData)
     } catch (requestError) {
+      if (controller.signal.aborted) return
       setError(requestError instanceof Error ? requestError.message : "Erro inesperado.")
     } finally {
-      setIsFetching(false)
+      if (loadController.current === controller) {
+        loadController.current = null
+        setIsFetching(false)
+      }
     }
-  }, [filters, reportsPage])
+  }, [dispatchesPage, filters, reportsPage])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    void load()
+    return () => {
+      loadController.current?.abort()
+      loadController.current = null
+    }
+  }, [load])
 
   // O destaque anterior continua na tela enquanto o novo carrega: assim o
   // preenchimento vai direto da parcela antiga para a nova, numa animação só.
   useEffect(() => {
-    let cancelled = false
+    const controller = new AbortController()
 
     if (!chartSelection) {
       setHighlightDashboard(null)
       setIsHighlightLoading(false)
-      return () => { cancelled = true }
+      return () => controller.abort()
     }
 
     setIsHighlightLoading(true)
     const selectedFilters: QualityFilters = { ...filters, ...chartSelection.filters }
 
-    getJson<QualityDashboard>(`/backend/api/quality/dashboard.php${filtersToQuery(selectedFilters)}`)
+    getJson<QualityDashboard>(
+      `/backend/api/quality/dashboard.php${filtersToQuery(selectedFilters)}`,
+      { signal: controller.signal },
+    )
       .then((data) => {
-        if (cancelled) return
+        if (controller.signal.aborted) return
         setHighlightDashboard(data)
         setIsHighlightLoading(false)
       })
       .catch(() => {
-        if (cancelled) return
+        if (controller.signal.aborted) return
         setChartSelection(null)
         setIsHighlightLoading(false)
         setError("Não foi possível calcular o destaque dos gráficos.")
       })
 
-    return () => { cancelled = true }
+    return () => controller.abort()
   }, [chartSelection, filters])
 
   // Trocar o filtro volta a listagem para a primeira página.
@@ -166,6 +227,7 @@ export function QualityPage({ csrfToken, canManage, permissions, tabsInHeader }:
     setChartSelection(null)
     setHighlightDashboard(null)
     setReportsPage(1)
+    setDispatchesPage(1)
   }
 
   const selectChart = (next: QualityChartSelection) => {
@@ -257,6 +319,35 @@ export function QualityPage({ csrfToken, canManage, permissions, tabsInHeader }:
     void load()
   }
 
+  const deleteRecord = async (kind: PrintTarget["kind"], id: number) => {
+    setError("")
+    setNotice("")
+
+    try {
+      const endpoint = kind === "report"
+        ? "/backend/api/quality/report-delete.php"
+        : "/backend/api/quality/dispatch-delete.php"
+      const payload = await postJson<{ message: string }>(endpoint, { id, csrfToken })
+
+      const shouldGoBack = kind === "report"
+        ? reportsPage > 1 && reports?.items.length === 1
+        : dispatchesPage > 1 && recordDispatches?.items.length === 1
+
+      if (shouldGoBack) {
+        if (kind === "report") setReportsPage((current) => Math.max(1, current - 1))
+        else setDispatchesPage((current) => Math.max(1, current - 1))
+      } else {
+        await load()
+      }
+      return { success: true, message: payload.message }
+    } catch (requestError) {
+      return {
+        success: false,
+        message: requestError instanceof Error ? requestError.message : "Erro inesperado.",
+      }
+    }
+  }
+
   return (
     <>
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -339,7 +430,7 @@ export function QualityPage({ csrfToken, canManage, permissions, tabsInHeader }:
         {/* O recorte só troca quando os números chegam; esmaecer o painel nesse
             intervalo é o retorno imediato do clique. */}
         {dashboard && (
-          <div className={`transition-opacity ${isFetching ? "opacity-60" : isHighlightLoading ? "opacity-80" : ""}`}>
+          <div key={chartEpoch} className={`transition-opacity ${isFetching ? "opacity-60" : isHighlightLoading ? "opacity-80" : ""}`}>
             {tab === "raps" && (
               <RapsSection
                 data={dashboard}
@@ -379,7 +470,9 @@ export function QualityPage({ csrfToken, canManage, permissions, tabsInHeader }:
                 selection={chartSelection}
                 dispatches={dispatches}
                 options={options}
+                canDelete={canManage}
                 onPrint={(id) => setPrintTarget({ kind: "dispatch", id })}
+                onDelete={deleteRecord}
                 onSelectPeriod={selectPeriod}
                 onSelectMachineType={selectMachineType}
                 onSelectModel={(value) => selectText("model", value)}
@@ -408,9 +501,15 @@ export function QualityPage({ csrfToken, canManage, permissions, tabsInHeader }:
             {tab === "registros" && (
               <ReportsSection
                 reports={reports}
-                page={reportsPage}
-                onPageChange={setReportsPage}
+                dispatches={recordDispatches}
+                reportsPage={reportsPage}
+                dispatchesPage={dispatchesPage}
+                canDelete={canManage}
+                onReportsPageChange={setReportsPage}
+                onDispatchesPageChange={setDispatchesPage}
                 onPrint={(id) => setPrintTarget({ kind: "report", id })}
+                onPrintDispatch={(id) => setPrintTarget({ kind: "dispatch", id })}
+                onDelete={deleteRecord}
               />
             )}
           </div>

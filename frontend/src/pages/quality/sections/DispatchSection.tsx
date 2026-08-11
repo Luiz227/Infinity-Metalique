@@ -1,8 +1,16 @@
+import { useState } from "react"
 import { Camera, Printer } from "lucide-react"
 
 import { ChartCard } from "@/pages/quality/charts/ChartCard"
 import { RankingBars, TrendColumns } from "@/pages/quality/charts/QualityCharts"
 import { StatTile } from "@/pages/quality/charts/StatTile"
+import {
+  RecordDeleteButton,
+  RecordDeleteDialog,
+  type DeleteResult,
+  type RecordKind,
+  type RecordTarget,
+} from "@/pages/quality/RecordDeleteDialog"
 import { formatDate } from "@/pages/quality/format"
 import type { DispatchRow, Paginated, QualityChartSelection, QualityDashboard, QualityOptions } from "@/pages/quality/types"
 
@@ -13,7 +21,9 @@ export function DispatchSection({
   selection,
   dispatches,
   options,
+  canDelete,
   onPrint,
+  onDelete,
   onSelectPeriod,
   onSelectMachineType,
   onSelectModel,
@@ -23,7 +33,9 @@ export function DispatchSection({
   selection: QualityChartSelection | null
   dispatches: Paginated<DispatchRow> | null
   options: QualityOptions | null
+  canDelete: boolean
   onPrint: (id: number) => void
+  onDelete: (kind: RecordKind, id: number) => Promise<DeleteResult>
   onSelectPeriod: (period: string) => void
   onSelectMachineType: (machineType: string) => void
   onSelectModel: (model: string) => void
@@ -32,9 +44,11 @@ export function DispatchSection({
     ? `${selection.filters.year}-${String(selection.filters.month).padStart(2, "0")}`
     : null
   const selectedMachine = options?.machineTypes.find((item) => Number(item.id) === selection?.filters.machineTypeId)?.name ?? null
+  const [deleteTarget, setDeleteTarget] = useState<RecordTarget | null>(null)
 
   return (
-    <div className="grid gap-4">
+    <>
+      <div className="grid gap-4">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile label="Total de coletas" value={data.cards.totalDispatches} hero hint="Relatórios de produto coletado" />
         <StatTile label="Máquina destaque" value={data.cards.highlightMachine ?? "—"} hint="Linha mais expedida no período" />
@@ -86,7 +100,7 @@ export function DispatchSection({
             measure="coletas"
             highlightData={selection && highlight ? highlight.dispatchesByModel : null}
             height={320}
-            labelWidth={130}
+            labelWidth={170}
             selectedLabel={(selection?.filters.model as string | undefined) ?? null}
             onSelect={onSelectModel}
           />
@@ -103,7 +117,7 @@ export function DispatchSection({
           <table className="w-full border-collapse text-left text-sm">
             <thead className="sticky top-0 bg-white">
               <tr className="text-[#52514e]">
-                {["Nº", "Data", "Cliente", "Máquina", "Modelo", "Fotos", ""].map((head) => (
+                {["Nº", "Data", "Cliente", "Máquina", "Modelo", "Fotos", "Ações"].map((head) => (
                   <th key={head} className="border-b border-[#e1e0d9] pb-2 pr-3 font-medium">{head}</th>
                 ))}
               </tr>
@@ -123,20 +137,31 @@ export function DispatchSection({
                     </span>
                   </td>
                   <td className="py-2">
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1 rounded-full border border-black/10 px-2.5 py-1 text-xs text-[#52514e] hover:bg-neutral-50"
-                      onClick={() => onPrint(row.id)}
-                    >
-                      <Printer className="size-3.5" /> Imprimir
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 rounded-full border border-black/10 px-2.5 py-1 text-xs text-[#52514e] hover:bg-neutral-50"
+                        onClick={() => onPrint(row.id)}
+                      >
+                        <Printer className="size-3.5" /> Imprimir
+                      </button>
+                      {canDelete && (
+                        <RecordDeleteButton
+                          target={{ kind: "dispatch", id: row.id, code: row.code }}
+                          onSelect={setDeleteTarget}
+                        />
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </section>
-    </div>
+        </section>
+      </div>
+
+      <RecordDeleteDialog target={deleteTarget} onOpenChange={setDeleteTarget} onDelete={onDelete} />
+    </>
   )
 }
