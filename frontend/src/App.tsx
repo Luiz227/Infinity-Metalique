@@ -11,11 +11,12 @@ import { LoginPage } from "@/pages/login/LoginPage"
 import { RequiredPasswordChangePage } from "@/pages/password-change/RequiredPasswordChangePage"
 import { AccessRequestPage } from "@/pages/access-request/AccessRequestPage"
 import { QualityPage } from "@/pages/quality/QualityPage"
+import { ExternalAppPage } from "@/pages/external-app/ExternalAppPage"
 import { UsersPage } from "@/pages/users/UsersPage"
 import type { ApiResponse, PermissionKey, User } from "@/types"
 
 /** Rotas que vivem dentro da moldura vermelha e exigem sessão. */
-const INTERNAL_ROUTES: Route[] = ["/sistema", "/qualidade", "/usuarios"]
+const INTERNAL_ROUTES: Route[] = ["/sistema", "/qualidade", "/usuarios", "/piperun", "/sige"]
 const ROUTE_PERMISSIONS: Partial<Record<Route, PermissionKey>> = {
   "/sistema": "dashboard.view",
   "/qualidade": "quality.view",
@@ -23,6 +24,7 @@ const ROUTE_PERMISSIONS: Partial<Record<Route, PermissionKey>> = {
 }
 
 function canOpen(user: User, route: Route): boolean {
+  if (route === "/piperun" || route === "/sige") return user.role === "admin"
   const permission = ROUTE_PERMISSIONS[route]
   return !permission || !Array.isArray(user.permissions) || user.permissions.includes(permission)
 }
@@ -92,6 +94,8 @@ function App() {
       "/sistema": "Dashboard | Metalique Infinity",
       "/qualidade": "Qualidade | Metalique Infinity",
       "/usuarios": "Usuários | Metalique Infinity",
+      "/piperun": "PipeRun | Metalique Infinity",
+      "/sige": "SIGE | Metalique Infinity",
     }
     document.title = titles[route]
   }, [route])
@@ -146,6 +150,7 @@ function App() {
           user={user}
           csrfToken={csrfToken}
           active={route}
+          embedded={route === "/piperun" || route === "/sige"}
           scrollRef={panelRef}
           onUserUpdated={setUser}
           onLogout={() => {
@@ -176,6 +181,8 @@ function App() {
               )}
               {route === "/usuarios" && <UsersPage csrfToken={csrfToken} currentUserId={user.id} />}
               {route === "/sistema" && <DashboardPage />}
+              {route === "/piperun" && <ExternalAppPage appId="piperun" name="PipeRun" />}
+              {route === "/sige" && <ExternalAppPage appId="sige" name="SIGE" />}
             </motion.div>
           </AnimatePresence>
         </AppShell>

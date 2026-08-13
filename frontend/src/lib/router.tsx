@@ -1,8 +1,8 @@
 import type { MouseEvent, ReactNode } from "react"
 
-export type Route = "/" | "/login" | "/solicitar-acesso" | "/sistema" | "/qualidade" | "/usuarios"
+export type Route = "/" | "/login" | "/solicitar-acesso" | "/sistema" | "/qualidade" | "/usuarios" | "/piperun" | "/sige"
 
-const routes = new Set<Route>(["/", "/login", "/solicitar-acesso", "/sistema", "/qualidade", "/usuarios"])
+const routes = new Set<Route>(["/", "/login", "/solicitar-acesso", "/sistema", "/qualidade", "/usuarios", "/piperun", "/sige"])
 
 export function currentRoute(): Route {
   const path = window.location.pathname.replace(/\/$/, "") || "/"

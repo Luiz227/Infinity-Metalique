@@ -64,6 +64,19 @@ npm run dev
 
 Acesse `http://127.0.0.1:5173`.
 
+### Testar como aplicativo desktop
+
+Com o backend PHP e o MySQL em execução, abra outro terminal:
+
+```powershell
+cd frontend
+npm run desktop:dev
+```
+
+O aplicativo abre o Infinity em uma janela desktop. As abas **PipeRun** e
+**SIGE** carregam os sistemas dentro do painel principal e mantêm cada sessão
+em um armazenamento isolado.
+
 Para gerar o frontend de produção:
 
 ```powershell

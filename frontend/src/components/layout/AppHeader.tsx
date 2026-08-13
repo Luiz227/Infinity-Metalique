@@ -11,10 +11,12 @@ import { AppLink, type Route, navigate } from "@/lib/router"
 import type { ApiResponse, PermissionKey, User } from "@/types"
 
 /** Itens da barra de navegação. Os que ainda não têm tela ficam como âncora. */
-const navigation: { label: string; to?: Route; anchor?: string; permission?: PermissionKey }[] = [
+const navigation: { label: string; to?: Route; anchor?: string; permission?: PermissionKey; adminOnly?: boolean }[] = [
   { label: "Dashboard", to: "/sistema", permission: "dashboard.view" },
   { label: "Qualidade", to: "/qualidade", permission: "quality.view" },
   { label: "Usuários", to: "/usuarios", permission: "users.manage" },
+  { label: "PipeRun", to: "/piperun", adminOnly: true },
+  { label: "SIGE", to: "/sige", adminOnly: true },
 ]
 
 const qualityNavigation: { id: string; label: string; permission: PermissionKey }[] = [
@@ -59,9 +61,9 @@ export function AppHeader({ user, csrfToken, active, onUserUpdated, onLogout }: 
     && visibleQualityNavigation.length === 0
     && (canCreateRap || canCreateDispatch)
   const visibleNavigation = navigation.filter((item) => (
-    item.anchor
+    (!item.adminOnly || user.role === "admin") && (item.anchor
       ? !user.role || user.role === "admin"
-      : !item.permission || !Array.isArray(user.permissions) || user.permissions.includes(item.permission)
+      : !item.permission || !Array.isArray(user.permissions) || user.permissions.includes(item.permission))
   ))
 
   useEffect(() => setDisplayPhoto(profilePhotoUrl(user.profile_photo)), [user.profile_photo])

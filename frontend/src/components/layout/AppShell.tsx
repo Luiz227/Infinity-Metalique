@@ -12,7 +12,7 @@ import type { User } from "@/types"
  * porque em navegador de celular `100vh` inclui a barra de endereço retrátil, e
  * o rodapé da moldura acabaria escondido atrás dela.
  */
-export function AppShell({ user, csrfToken, active, onUserUpdated, onLogout, scrollRef, children }: {
+export function AppShell({ user, csrfToken, active, onUserUpdated, onLogout, scrollRef, embedded = false, children }: {
   user: User
   csrfToken: string
   active: Route
@@ -20,6 +20,7 @@ export function AppShell({ user, csrfToken, active, onUserUpdated, onLogout, scr
   onLogout: () => void
   /** Quem monta o shell usa esta referência para voltar ao topo ao trocar de rota. */
   scrollRef?: RefObject<HTMLDivElement | null>
+  embedded?: boolean
   children: ReactNode
 }) {
   // Sem padding no topo: quem afasta o logo da borda é o py-7 do próprio
@@ -45,7 +46,9 @@ export function AppShell({ user, csrfToken, active, onUserUpdated, onLogout, scr
               começa depois que a curva termina, em vez de ser cortado por ela. */}
           <div
             ref={scrollRef}
-            className="app-scroll my-8 flex min-h-0 flex-1 flex-col overflow-y-auto px-[5%] lg:my-10 lg:px-[1.7%]"
+            className={embedded
+              ? "flex min-h-0 flex-1 flex-col overflow-hidden"
+              : "app-scroll my-8 flex min-h-0 flex-1 flex-col overflow-y-auto px-[5%] lg:my-10 lg:px-[1.7%]"}
           >
             {children}
           </div>
