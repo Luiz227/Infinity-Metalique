@@ -22,8 +22,11 @@ export function AppShell({ user, csrfToken, active, onUserUpdated, onLogout, scr
   scrollRef?: RefObject<HTMLDivElement | null>
   children: ReactNode
 }) {
+  // Sem padding no topo: quem afasta o logo da borda é o py-7 do próprio
+  // cabeçalho, e as duas caixas são vermelhas, então o padding daqui só
+  // somaria ao dele.
   return (
-    <main className="h-dvh overflow-hidden bg-[#db0f0f] p-3 text-black sm:p-5 lg:px-[2vw] lg:pb-[1.5vw] lg:pt-[1.5vw]">
+    <main className="h-dvh overflow-hidden bg-[#db0f0f] px-3 pb-3 text-black sm:px-5 sm:pb-5 lg:px-[2vw] lg:pb-[1.5vw]">
       <div className="mx-auto flex h-full min-h-0 max-w-[1788px] flex-col overflow-hidden rounded-[28px] bg-[#db0f0f] text-white lg:rounded-[50px]">
         <AppHeader
           user={user}

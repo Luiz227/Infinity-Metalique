@@ -483,7 +483,8 @@ export function RankingBars({
           if (index !== null && visibleData[index]) onSelect(visibleData[index].label)
         } : undefined}
       >
-        <XAxis type="number" hide />
+        <CartesianGrid horizontal={false} stroke={INK.grid} />
+        <XAxis type="number" allowDecimals={false} axisLine={{ stroke: INK.axis }} {...axisProps} />
         <YAxis
           type="category"
           dataKey="label"
@@ -540,7 +541,7 @@ export function TrendColumns({ data, highlightData = null, height = 260, measure
       >
         <CartesianGrid vertical={false} stroke={INK.grid} />
         <XAxis dataKey="label" axisLine={{ stroke: INK.axis }} {...axisProps} />
-        <YAxis hide />
+        <YAxis width={32} axisLine={false} allowDecimals={false} {...axisProps} />
         <Tooltip content={<ChartTooltip measure={measure} />} cursor={{ fill: "rgba(11,11,11,0.04)" }} />
         <Bar
           dataKey="value"

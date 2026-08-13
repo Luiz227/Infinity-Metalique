@@ -440,7 +440,7 @@ function findInspectionReport(int $id): ?array
     $rows = queryRows(
         "SELECT r.*, cl.name AS client, t.name AS machine_type,
                 q.code AS quality_code, q.description AS quality_code_description,
-                u.name AS created_by
+                u.name AS created_by, u.job_title AS created_by_job_title
          FROM inspection_reports r
          LEFT JOIN clients cl ON cl.id = r.client_id
          LEFT JOIN machine_types t ON t.id = r.machine_type_id
@@ -496,7 +496,8 @@ function listMachineDispatches(array $filters, int $page = 1, int $perPage = 25)
 function findMachineDispatch(int $id): ?array
 {
     $rows = queryRows(
-        "SELECT d.*, cl.name AS client, t.name AS machine_type, u.name AS created_by
+        "SELECT d.*, cl.name AS client, t.name AS machine_type,
+                u.name AS created_by, u.job_title AS created_by_job_title
          FROM machine_dispatches d
          LEFT JOIN clients cl ON cl.id = d.client_id
          LEFT JOIN machine_types t ON t.id = d.machine_type_id

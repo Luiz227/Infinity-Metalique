@@ -97,9 +97,11 @@ export function AppHeader({ user, csrfToken, active, onUserUpdated, onLogout }: 
       {/* Três colunas com laterais de mesma largura mantêm o menu no centro do
           cabeçalho, independentemente do tamanho da logo e do bloco de perfil.
           Abaixo de lg o menu desce para uma linha própria. */}
-      <header className="grid min-h-[82px] grid-cols-2 items-center gap-4 px-[5%] py-5 lg:min-h-[78px] lg:grid-cols-[1fr_auto_1fr] lg:px-[1%] lg:py-2">
+      <header className="grid min-h-[82px] grid-cols-2 items-center gap-4 px-[5%] py-7 lg:min-h-[78px] lg:grid-cols-[1fr_auto_1fr] lg:px-[1%]">
         <AppLink className="flex shrink-0 items-center justify-self-start" to="/" ariaLabel="Metalique Infinity">
-          <img className="h-auto w-[94px] lg:w-[150px]" src="/images/logo-b.svg" alt="Metalique Infinity" />
+          {/* Altura casada com a da barra do menu (padding + py-2 + line-height
+              do texto): 36px no mobile, 38px no sm e 46px no lg. */}
+          <img className="h-9 w-auto sm:h-[38px] lg:h-[46px]" src="/images/logo-b.svg" alt="Metalique Infinity" />
         </AppLink>
 
         <nav

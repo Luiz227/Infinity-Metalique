@@ -105,8 +105,11 @@
         page-break-inside: avoid;
     }
 
-    /* O navegador repete elementos fixos em cada folha impressa. A margem
-       inferior de @page abaixo reserva a área ocupada pelas assinaturas. */
+    /* A faixa de 16mm reservada pelo @page abaixo é exatamente a altura deste
+       rodapé; o bottom negativo o encaixa dentro dela, fora da área de
+       conteúdo. O navegador repete caixas fixas em todas as folhas, então as
+       assinaturas ficam presas ao fim de cada página sem ocupar espaço no
+       fluxo - nada aqui pode empurrar o relatório para uma folha extra. */
     .quality-screen-signatures {
         display: none;
     }
@@ -114,18 +117,22 @@
     .quality-print-signatures {
         position: fixed;
         right: 0;
-        bottom: -23mm;
+        bottom: 0;
         left: 0;
         z-index: 10;
         display: grid;
-        height: 21mm;
+        align-content: end;
+        height: 16mm;
         margin: 0;
-        padding-top: 2mm;
-        background: white;
+        padding: 0;
+        border: 0;
+        gap: 1mm 8mm;
+        background: #fff;
     }
 
+    /* Linha sobre a qual se assina. */
     .quality-print-signatures > div > div {
-        height: 8mm;
+        height: 7mm;
     }
 
     /* A versão impressa é um pouco mais compacta para um relatório que cabe
@@ -146,6 +153,9 @@
 
     @page {
         size: A4;
-        margin: 12mm 12mm 34mm;
+        /* 12mm de margem real + 16mm da faixa das assinaturas. Custom
+           properties não são resolvidas dentro de @page no Chromium, por isso
+           os 16mm aparecem repetidos aqui e na regra do rodapé. */
+        margin: 12mm 12mm 28mm;
     }
 }

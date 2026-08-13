@@ -131,6 +131,7 @@ export type ReportDetail = Omit<ReportRow, "employees"> & {
   sequence: number
   checklist_change: string | null
   created_by: string | null
+  created_by_job_title: string | null
   created_at: string
   employees: string[]
 }
@@ -152,6 +153,7 @@ export type DispatchDetail = Omit<DispatchRow, "photos"> & {
   form_change: string | null
   immediate_action: string | null
   created_by: string | null
+  created_by_job_title: string | null
   created_at: string
   employees: string[]
   photos: string[]

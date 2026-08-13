@@ -16,18 +16,24 @@ function Row({ label, value, wide = false }: { label: string; value: string | nu
   )
 }
 
-/** Rodapé compartilhado que o CSS de impressão repete em todas as páginas. */
-function SignatureFooter({ secondLabel, createdBy, className = "" }: {
+/**
+ * Bloco de assinaturas. Na tela ele segue o conteúdo; na impressão o CSS o
+ * transforma na faixa fixa de 16mm presa ao fim de cada folha.
+ */
+function SignatureFooter({ secondLabel, createdBy, jobTitle, className = "" }: {
   secondLabel: string
   createdBy: string | null
+  jobTitle: string | null
   className?: string
 }) {
   return (
-    <footer className={`quality-signature-footer ${className} mt-8 grid grid-cols-2 gap-x-8 gap-y-2 border-t border-[#e1e0d9] bg-white pt-6 text-xs text-[#52514e]`}>
+    <footer className={`${className} mt-8 grid grid-cols-2 gap-x-8 gap-y-2 border-t border-[#e1e0d9] bg-white pt-6 text-xs text-[#52514e]`}>
       <div><div className="h-10 border-b border-[#c3c2b7]" /><p className="mt-1">Inspetor da qualidade</p></div>
       <div><div className="h-10 border-b border-[#c3c2b7]" /><p className="mt-1">{secondLabel}</p></div>
+      {/* O cargo só entra quando há usuário vinculado - registros importados da
+          planilha não têm um, e o " · " solto ficaria pendurado no fim. */}
       <p className="col-span-2 text-[10px] text-[#898781]">
-        Registrado por {createdBy ?? "importação da planilha"} · Metalique Infinity
+        Registrado por {createdBy ?? "importação da planilha"}{jobTitle ? ` · ${jobTitle}` : ""}
       </p>
     </footer>
   )
@@ -51,20 +57,22 @@ export function PrintSheet({ report, dispatch, isLoading, onClose }: {
   }, [onClose])
 
   const signature = report
-    ? { secondLabel: "Responsável pela área", createdBy: report.created_by }
+    ? { secondLabel: "Responsável pela área", createdBy: report.created_by, jobTitle: report.created_by_job_title }
     : dispatch
-      ? { secondLabel: "Motorista / transportadora", createdBy: dispatch.created_by }
+      ? { secondLabel: "Motorista / transportadora", createdBy: dispatch.created_by, jobTitle: dispatch.created_by_job_title }
       : null
 
   return createPortal(
     <div className="quality-print-overlay fixed inset-0 z-50 overflow-auto bg-black/45 p-4 py-8" role="dialog" aria-modal="true">
-      {/* Fora do article: fotos, grids e quebras do conteúdo não podem alterar
-          a caixa fixa que o navegador repete no rodapé de cada folha. */}
+      {/* Fora do article: a faixa fixa de 16mm ocupa a margem inferior de cada
+          folha, então fotos, grids e quebras do conteúdo não a deslocam - e ela
+          não consome área útil nem empurra o relatório para uma folha extra. */}
       {!isLoading && signature && (
         <SignatureFooter
           className="quality-print-signatures"
           secondLabel={signature.secondLabel}
           createdBy={signature.createdBy}
+          jobTitle={signature.jobTitle}
         />
       )}
 
@@ -127,6 +135,7 @@ export function PrintSheet({ report, dispatch, isLoading, onClose }: {
                 className="quality-screen-signatures"
                 secondLabel="Responsável pela área"
                 createdBy={report.created_by}
+                jobTitle={report.created_by_job_title}
               />
             </>
           )}
@@ -176,6 +185,7 @@ export function PrintSheet({ report, dispatch, isLoading, onClose }: {
                 className="quality-screen-signatures"
                 secondLabel="Motorista / transportadora"
                 createdBy={dispatch.created_by}
+                jobTitle={dispatch.created_by_job_title}
               />
             </>
           )}
