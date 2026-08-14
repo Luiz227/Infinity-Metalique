@@ -1,17 +1,23 @@
 /// <reference types="vite/client" />
 
-type DesktopViewBounds = {
-  x: number
-  y: number
-  width: number
-  height: number
+type DesktopUpdateState = {
+  state: "idle" | "disabled" | "checking" | "available" | "downloading" | "downloaded" | "error"
+  currentVersion: string
+  productionRelease: boolean
+  version?: string
+  progress?: number
+  error?: string
 }
 
 interface Window {
   infinityDesktop?: {
     isDesktop: true
-    showExternalApp: (appId: "piperun" | "sige", bounds: DesktopViewBounds) => Promise<boolean>
-    resizeExternalApp: (appId: "piperun" | "sige", bounds: DesktopViewBounds) => void
-    hideExternalApp: (appId: "piperun" | "sige") => void
+    updates: {
+      getStatus: () => Promise<DesktopUpdateState>
+      check: () => Promise<DesktopUpdateState>
+      download: () => Promise<DesktopUpdateState>
+      install: () => void
+      onStatus: (listener: (status: DesktopUpdateState) => void) => () => void
+    }
   }
 }

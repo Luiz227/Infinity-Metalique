@@ -21,12 +21,14 @@ const ROUTE_PERMISSIONS: Partial<Record<Route, PermissionKey>> = {
   "/sistema": "dashboard.view",
   "/qualidade": "quality.view",
   "/usuarios": "users.manage",
+  "/piperun": "piperun.view",
+  "/sige": "sige.view",
 }
 
 function canOpen(user: User, route: Route): boolean {
-  if (route === "/piperun" || route === "/sige") return user.role === "admin"
+  if (user.role === "admin") return true
   const permission = ROUTE_PERMISSIONS[route]
-  return !permission || !Array.isArray(user.permissions) || user.permissions.includes(permission)
+  return !permission || user.permissions.includes(permission)
 }
 
 function firstAllowedRoute(user: User): Route {
@@ -39,6 +41,8 @@ function isQualityOnlyAccount(user: User): boolean {
     && user.permissions.includes("quality.view")
     && !user.permissions.includes("dashboard.view")
     && !user.permissions.includes("users.manage")
+    && !user.permissions.includes("piperun.view")
+    && !user.permissions.includes("sige.view")
 }
 
 function App() {
@@ -117,7 +121,8 @@ function App() {
           setUser(updatedUser)
           navigate(firstAllowedRoute(updatedUser), true)
         }}
-        onLogout={() => {
+        onLogout={(renewedCsrfToken) => {
+          setCsrfToken(renewedCsrfToken)
           setUser(null)
           navigate("/login", true)
         }}
@@ -129,7 +134,8 @@ function App() {
     return (
       <LoginPage
         csrfToken={csrfToken}
-        onAuthenticated={(authenticatedUser) => {
+        onAuthenticated={(authenticatedUser, renewedCsrfToken) => {
+          setCsrfToken(renewedCsrfToken)
           setUser(authenticatedUser)
           navigate(firstAllowedRoute(authenticatedUser))
         }}
@@ -153,7 +159,8 @@ function App() {
           embedded={route === "/piperun" || route === "/sige"}
           scrollRef={panelRef}
           onUserUpdated={setUser}
-          onLogout={() => {
+          onLogout={(renewedCsrfToken) => {
+            setCsrfToken(renewedCsrfToken)
             setUser(null)
             navigate("/")
           }}
@@ -190,7 +197,16 @@ function App() {
     )
   }
 
-  return <HomePage user={user} csrfToken={csrfToken} onLogout={() => setUser(null)} />
+  return (
+    <HomePage
+      user={user}
+      csrfToken={csrfToken}
+      onLogout={(renewedCsrfToken) => {
+        setCsrfToken(renewedCsrfToken)
+        setUser(null)
+      }}
+    />
+  )
 }
 
 export default App

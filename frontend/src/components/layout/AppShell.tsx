@@ -1,6 +1,7 @@
-import { type ReactNode, type RefObject } from "react"
+import { type ReactNode, type RefObject, useEffect, useRef } from "react"
 
 import { AppHeader } from "@/components/layout/AppHeader"
+import { postJson } from "@/lib/api"
 import type { Route } from "@/lib/router"
 import type { User } from "@/types"
 
@@ -17,18 +18,50 @@ export function AppShell({ user, csrfToken, active, onUserUpdated, onLogout, scr
   csrfToken: string
   active: Route
   onUserUpdated: (user: User) => void
-  onLogout: () => void
+  onLogout: (csrfToken: string) => void
   /** Quem monta o shell usa esta referência para voltar ao topo ao trocar de rota. */
   scrollRef?: RefObject<HTMLDivElement | null>
   embedded?: boolean
   children: ReactNode
 }) {
+  const lastHeartbeatAt = useRef(0)
+
+  useEffect(() => {
+    if (!csrfToken) return
+
+    let disposed = false
+
+    const sendHeartbeat = () => {
+      if (disposed) return
+
+      const now = Date.now()
+      if (now - lastHeartbeatAt.current < 30_000) return
+
+      lastHeartbeatAt.current = now
+      void postJson<{ presence: "online" }>("/backend/api/presence-heartbeat.php", { csrfToken })
+        .catch(() => undefined)
+    }
+
+    const activityEvents = ["pointerdown", "pointermove", "keydown", "scroll", "touchstart"] as const
+    const passiveOptions: AddEventListenerOptions = { passive: true, capture: true }
+
+    sendHeartbeat()
+    activityEvents.forEach((eventName) => window.addEventListener(eventName, sendHeartbeat, passiveOptions))
+    window.addEventListener("focus", sendHeartbeat)
+
+    return () => {
+      disposed = true
+      activityEvents.forEach((eventName) => window.removeEventListener(eventName, sendHeartbeat, passiveOptions))
+      window.removeEventListener("focus", sendHeartbeat)
+    }
+  }, [csrfToken])
+
   // Sem padding no topo: quem afasta o logo da borda é o py-7 do próprio
   // cabeçalho, e as duas caixas são vermelhas, então o padding daqui só
   // somaria ao dele.
   return (
     <main className="h-dvh overflow-hidden bg-[#db0f0f] px-3 pb-3 text-black sm:px-5 sm:pb-5 lg:px-[2vw] lg:pb-[1.5vw]">
-      <div className="mx-auto flex h-full min-h-0 max-w-[1788px] flex-col overflow-hidden rounded-[28px] bg-[#db0f0f] text-white lg:rounded-[50px]">
+      <div className="mx-auto flex h-full min-h-0 max-w-[1788px] flex-col overflow-hidden rounded-[28px] bg-[#db0f0f] text-white lg:rounded-[28px]">
         <AppHeader
           user={user}
           csrfToken={csrfToken}
@@ -41,7 +74,7 @@ export function AppShell({ user, csrfToken, active, onUserUpdated, onLogout, scr
             caixa e o border-radius do próprio elemento não a recorta, então ela
             atravessaria a curva. Quem rola é a caixa de dentro, e o
             overflow-hidden daqui garante o recorte. */}
-        <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] bg-[#f2f2f2] text-black sm:mx-[2.4%] sm:mb-[2.4%] lg:mx-[0.3%] lg:mb-[0.3%] lg:rounded-[53px]">
+        <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] bg-[#f2f2f2] text-black sm:mx-[2.4%] sm:mb-[2.4%] lg:mx-[0.3%] lg:mb-[0.3%] lg:rounded-[28px]">
           {/* A margem vertical afasta a barra dos cantos: com ela o polegar só
               começa depois que a curva termina, em vez de ser cortado por ela. */}
           <div

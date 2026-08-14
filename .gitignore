@@ -1,17 +1,65 @@
-/backend/.env
-/backend/database/seed_quality.sql
-/assets/uploads/profiles/*
-!/assets/uploads/profiles/.gitkeep
-!/assets/uploads/profiles/.htaccess
-/assets/uploads/dispatches/*
-!/assets/uploads/dispatches/.gitkeep
-!/assets/uploads/dispatches/.htaccess
+# ---------------------------------------------------------------
+# Laravel
+# ---------------------------------------------------------------
+/vendor
+/.env
+.env.backup
+.env.production
+.phpunit.result.cache
+/.phpunit.cache
+/storage/*.key
+/storage/pail
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+/bootstrap/cache/*.php
+/public/build
+/public/hot
+/public/storage
+/public/fonts-manifest.dev.json
+/auth.json
+_ide_helper.php
+Homestead.json
+Homestead.yaml
+
+# ---------------------------------------------------------------
+# Arquivos gerados e uploads da aplicacao
+# ---------------------------------------------------------------
+/database/importers/seed_quality.sql
+/public/assets/uploads/profiles/*
+!/public/assets/uploads/profiles/.gitkeep
+!/public/assets/uploads/profiles/.htaccess
+/public/assets/uploads/dispatches/*
+!/public/assets/uploads/dispatches/.gitkeep
+!/public/assets/uploads/dispatches/.htaccess
+/public/desktop-updates/
+
+# ---------------------------------------------------------------
+# Frontend React / Vite / Electron
+# ---------------------------------------------------------------
 /frontend/node_modules/
 /frontend/dist/
-/frontend/*.log
-/php-server*.log
-/php-desktop*.log
-*.tsbuildinfo
+/frontend/out/
 /frontend/vite.config.js
 /frontend/vite.config.d.ts
+/node_modules
+*.tsbuildinfo
+
+# ---------------------------------------------------------------
+# Logs e dumps locais
+# ---------------------------------------------------------------
+*.log
 /infinity_metalique.sql
+
+# ---------------------------------------------------------------
+# Editores e SO
+# ---------------------------------------------------------------
+/.idea
+/.vscode
+/.nova
+/.zed
+/.cursor/
+/.codex
+.phpactor.json
+.DS_Store
+Thumbs.db

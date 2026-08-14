@@ -1,0 +1,280 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\User;
+use App\Services\UploadService;
+use App\Support\Input;
+use App\Support\Permissions;
+use Illuminate\Database\QueryException;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+
+final class UserController extends Controller
+{
+    public function index(): JsonResponse
+    {
+        try {
+            $users = User::query()
+                ->orderByDesc('is_primary_admin')
+                ->orderBy('name')
+                ->get()
+                ->map(static fn (User $user): array => [
+                    'id' => (int) $user->id,
+                    'name' => (string) $user->name,
+                    'email' => (string) $user->email,
+                    'job_title' => (string) $user->job_title,
+                    'sector' => (string) $user->sector,
+                    'role' => (string) $user->role,
+                    'is_primary_admin' => (bool) $user->is_primary_admin,
+                    'is_active' => (bool) $user->is_active,
+                    'must_change_password' => (bool) $user->must_change_password,
+                    'profile_photo' => $user->profile_photo ? (string) $user->profile_photo : null,
+                    'created_at' => (string) $user->created_at,
+                    'permissions' => $user->permissionKeys(),
+                ])
+                ->all();
+        } catch (QueryException) {
+            return response()->json(['message' => 'Não foi possível carregar os usuários.'], 503);
+        }
+
+        return response()->json(['users' => $users, 'permissions' => Permissions::definitions()]);
+    }
+
+    public function save(Request $request): JsonResponse
+    {
+        /** @var User $administrator */
+        $administrator = $request->user();
+        $id = max(0, $request->integer('id'));
+        $name = Input::name($request->input('name'));
+        $email = Input::email($request->input('email'));
+        $jobTitle = Input::name($request->input('jobTitle'));
+        $sector = Input::name($request->input('sector'));
+        $role = (string) $request->input('role', 'user');
+        $password = (string) $request->input('password', '');
+        $isActive = filter_var($request->input('isActive', true), FILTER_VALIDATE_BOOL);
+        $submitted = is_array($request->input('permissions')) ? $request->input('permissions') : [];
+        $permissions = array_values(array_unique(array_intersect(
+            array_map('strval', $submitted),
+            Permissions::keys()
+        )));
+
+        if (strlen($name) < 3 || strlen($name) > 120) {
+            return response()->json(['message' => 'Informe um nome válido de 3 a 120 caracteres.'], 422);
+        }
+        if (! filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 254) {
+            return response()->json(['message' => 'Informe um e-mail válido.'], 422);
+        }
+        if (strlen($jobTitle) < 2 || strlen($jobTitle) > 100) {
+            return response()->json(['message' => 'Informe um cargo válido.'], 422);
+        }
+        if (strlen($sector) < 2 || strlen($sector) > 120) {
+            return response()->json(['message' => 'Informe um setor válido.'], 422);
+        }
+        if (! in_array($role, ['admin', 'user'], true)) {
+            return response()->json(['message' => 'Escolha um tipo de conta válido.'], 422);
+        }
+        if ($id === 0 && $password === '') {
+            return response()->json(['message' => 'Informe uma senha inicial.'], 422);
+        }
+        if ($password !== '' && ($error = Input::passwordPolicyError($password))) {
+            return response()->json(['message' => $error], 422);
+        }
+
+        if ($role === 'admin') {
+            $permissions = Permissions::keys();
+        } else {
+            $quality = [
+                'quality.manage', 'quality.create_rap', 'quality.create_dispatch',
+                'quality.raps', 'quality.units', 'quality.products', 'quality.dispatches',
+                'quality.employees', 'quality.satisfaction', 'quality.records',
+            ];
+            if (array_intersect($quality, $permissions) !== []) {
+                $permissions[] = 'quality.view';
+            }
+            $permissions = array_values(array_unique($permissions));
+        }
+
+        if ($permissions === []) {
+            return response()->json(['message' => 'Selecione pelo menos uma permissão para a conta.'], 422);
+        }
+
+        $isNew = $id === 0;
+
+        try {
+            $result = DB::transaction(function () use (
+                $administrator, &$id, $name, $email, $jobTitle, $sector, $role,
+                $password, $isActive, $permissions, $isNew
+            ): array {
+                if (! $isNew) {
+                    $target = User::query()->lockForUpdate()->find($id);
+                    if ($target === null) {
+                        return ['error' => 'Usuário não encontrado.', 'status' => 404];
+                    }
+                    if ($target->is_primary_admin) {
+                        return ['error' => 'A conta administradora principal é protegida.', 'status' => 422];
+                    }
+                    if ($id === (int) $administrator->id && (! $isActive || $role !== 'admin')) {
+                        return ['error' => 'Você não pode remover o próprio acesso administrativo.', 'status' => 422];
+                    }
+
+                    $values = [
+                        'name' => $name,
+                        'email' => $email,
+                        'job_title' => $jobTitle,
+                        'sector' => $sector,
+                        'role' => $role,
+                        'is_active' => $isActive,
+                    ];
+                    if ($password !== '') {
+                        $values['password_hash'] = Hash::make($password);
+                        $values['must_change_password'] = $id !== (int) $administrator->id;
+                    }
+                    $target->forceFill($values)->save();
+                    $message = 'Usuário atualizado com sucesso.';
+                } else {
+                    $target = User::query()->create([
+                        'name' => $name,
+                        'email' => $email,
+                        'job_title' => $jobTitle,
+                        'sector' => $sector,
+                        'password_hash' => Hash::make($password),
+                        'role' => $role,
+                        'is_active' => $isActive,
+                        'must_change_password' => true,
+                    ]);
+                    $id = (int) $target->id;
+                    $message = 'Usuário criado com sucesso.';
+                }
+
+                DB::table('user_permissions')->where('user_id', $id)->delete();
+                DB::table('user_permissions')->insert(array_map(
+                    static fn (string $permission): array => [
+                        'user_id' => $id,
+                        'permission' => $permission,
+                        'created_at' => now(),
+                    ],
+                    $permissions
+                ));
+
+                DB::table('access_requests')
+                    ->where('status', 'pending')
+                    ->where(function ($query) use ($email, $name): void {
+                        $query->where('email', $email)
+                            ->orWhere(function ($withoutEmail) use ($name): void {
+                                $withoutEmail->whereNull('email')->where('name', $name);
+                            });
+                    })
+                    ->update(['status' => 'approved', 'updated_at' => now()]);
+
+                return ['message' => $message];
+            });
+        } catch (QueryException $error) {
+            if ((string) $error->getCode() === '23000') {
+                return response()->json(['message' => 'Já existe uma conta com este e-mail.'], 409);
+            }
+
+            return response()->json(['message' => 'Não foi possível salvar o usuário.'], 503);
+        }
+
+        if (isset($result['error'])) {
+            return response()->json(['message' => $result['error']], $result['status']);
+        }
+
+        return response()->json(['message' => $result['message'], 'id' => $id], $isNew ? 201 : 200);
+    }
+
+    public function delete(Request $request, UploadService $uploads): JsonResponse
+    {
+        /** @var User $administrator */
+        $administrator = $request->user();
+        if ($administrator->role !== 'admin') {
+            return response()->json(['message' => 'Somente administradores podem excluir contas.'], 403);
+        }
+
+        $id = max(0, $request->integer('id'));
+        if ($id === 0) {
+            return response()->json(['message' => 'Usuário inválido.'], 422);
+        }
+
+        try {
+            $result = DB::transaction(function () use ($id, $administrator): array {
+                $target = User::query()->lockForUpdate()->find($id);
+                if ($target === null) {
+                    return ['error' => 'Usuário não encontrado.', 'status' => 404];
+                }
+                if ($target->is_primary_admin) {
+                    return ['error' => 'A conta administradora principal não pode ser excluída.', 'status' => 422];
+                }
+                if ($id === (int) $administrator->id) {
+                    return ['error' => 'Você não pode excluir a própria conta.', 'status' => 422];
+                }
+
+                $data = ['name' => (string) $target->name, 'photo' => $target->profile_photo];
+                $target->delete();
+
+                return $data;
+            });
+        } catch (QueryException) {
+            return response()->json(['message' => 'Não foi possível excluir a conta.'], 503);
+        }
+
+        if (isset($result['error'])) {
+            return response()->json(['message' => $result['error']], $result['status']);
+        }
+        if ($result['photo']) {
+            $uploads->remove([(string) $result['photo']]);
+        }
+
+        return response()->json(['message' => 'Conta de '.$result['name'].' excluída com sucesso.']);
+    }
+
+    public function decidePasswordReset(Request $request): JsonResponse
+    {
+        /** @var User $administrator */
+        $administrator = $request->user();
+        if ($administrator->role !== 'admin') {
+            return response()->json(['message' => 'Somente administradores podem analisar esta solicitação.'], 403);
+        }
+
+        $id = max(0, $request->integer('id'));
+        $decision = (string) $request->input('decision', '');
+        if ($id === 0 || ! in_array($decision, ['approve', 'reject'], true)) {
+            return response()->json(['message' => 'Decisão inválida.'], 422);
+        }
+
+        try {
+            $result = DB::transaction(function () use ($id, $decision, $administrator): ?string {
+                $record = DB::table('password_reset_requests')
+                    ->where('id', $id)->where('status', 'pending')->lockForUpdate()->first();
+                if ($record === null) {
+                    return null;
+                }
+
+                $approved = $decision === 'approve';
+                DB::table('password_reset_requests')->where('id', $id)->update([
+                    'status' => $approved ? 'approved' : 'rejected',
+                    'reviewed_by_user_id' => $administrator->id,
+                    'reviewed_at' => now(),
+                    'expires_at' => $approved ? now()->addDay() : null,
+                    'updated_at' => now(),
+                ]);
+
+                return $approved ? 'Recuperação de senha aprovada.' : 'Recuperação de senha recusada.';
+            });
+        } catch (QueryException) {
+            return response()->json(['message' => 'Não foi possível analisar a solicitação.'], 503);
+        }
+
+        if ($result === null) {
+            return response()->json(['message' => 'Esta solicitação já foi analisada.'], 409);
+        }
+
+        return response()->json(['message' => $result]);
+    }
+}

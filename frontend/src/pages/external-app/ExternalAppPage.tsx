@@ -3,49 +3,58 @@ import { AppWindow, LoaderCircle } from "lucide-react"
 
 type ExternalAppId = "piperun" | "sige"
 
-function viewBounds(element: HTMLElement) {
-  const rect = element.getBoundingClientRect()
-  return { x: rect.left, y: rect.top, width: rect.width, height: rect.height }
+const externalApps: Record<ExternalAppId, { url: string; partition: string }> = {
+  piperun: { url: "https://app.pipe.run/v2/login", partition: "persist:piperun" },
+  sige: { url: "https://app.sigecloud.com.br/Login.aspx", partition: "persist:sige" },
 }
 
 export function ExternalAppPage({ appId, name }: { appId: ExternalAppId; name: string }) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const desktop = window.infinityDesktop
+  const isDesktop = window.infinityDesktop?.isDesktop === true
 
   useEffect(() => {
     const host = hostRef.current
-    if (!host || !desktop?.isDesktop) return
+    if (!host || !isDesktop) return
 
-    let cancelled = false
-    const showView = async () => {
-      const shown = await desktop.showExternalApp(appId, viewBounds(host))
-      if (!cancelled && shown) setIsLoading(false)
-    }
-    const resizeView = () => desktop.resizeExternalApp(appId, viewBounds(host))
-    const observer = new ResizeObserver(resizeView)
+    setIsLoading(true)
 
-    observer.observe(host)
-    window.addEventListener("resize", resizeView)
-    void showView()
+    const config = externalApps[appId]
+    const webview = document.createElement("webview")
+    const finishLoading = () => setIsLoading(false)
+
+    webview.setAttribute("src", config.url)
+    webview.setAttribute("partition", config.partition)
+    webview.setAttribute("webpreferences", "contextIsolation=yes,nodeIntegration=no,sandbox=yes")
+    webview.setAttribute("aria-label", name)
+    webview.style.display = "flex"
+    webview.style.width = "100%"
+    webview.style.height = "100%"
+    webview.style.minWidth = "0"
+    webview.style.minHeight = "0"
+    webview.addEventListener("did-stop-loading", finishLoading)
+    webview.addEventListener("did-fail-load", finishLoading)
+    host.appendChild(webview)
 
     return () => {
-      cancelled = true
-      observer.disconnect()
-      window.removeEventListener("resize", resizeView)
-      desktop.hideExternalApp(appId)
+      webview.removeEventListener("did-stop-loading", finishLoading)
+      webview.removeEventListener("did-fail-load", finishLoading)
+      webview.remove()
     }
-  }, [appId, desktop])
+  }, [appId, isDesktop, name])
 
   return (
-    <div ref={hostRef} className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-white">
-      {desktop?.isDesktop ? (
-        isLoading && (
-          <div className="flex items-center gap-3 text-sm text-neutral-600">
-            <LoaderCircle className="size-5 animate-spin text-[#db0f0f]" />
-            Carregando {name}...
-          </div>
-        )
+    <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-white">
+      {isDesktop ? (
+        <>
+          <div ref={hostRef} className="size-full min-h-0 min-w-0 overflow-hidden" />
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center gap-3 bg-white text-sm text-neutral-600">
+              <LoaderCircle className="size-5 animate-spin text-[#db0f0f]" />
+              Carregando {name}...
+            </div>
+          )}
+        </>
       ) : (
         <div className="mx-6 max-w-md text-center">
           <AppWindow className="mx-auto size-10 text-[#db0f0f]" />

@@ -29,7 +29,10 @@ function savedResetRequest(): SavedResetRequest | null {
   }
 }
 
-export function LoginPage({ csrfToken, onAuthenticated }: { csrfToken: string; onAuthenticated: (user: User) => void }) {
+export function LoginPage({ csrfToken, onAuthenticated }: {
+  csrfToken: string
+  onAuthenticated: (user: User, csrfToken: string) => void
+}) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -40,6 +43,7 @@ export function LoginPage({ csrfToken, onAuthenticated }: { csrfToken: string; o
   const [newPassword, setNewPassword] = useState("")
   const [confirmation, setConfirmation] = useState("")
   const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmation, setShowConfirmation] = useState(false)
   const [resetError, setResetError] = useState("")
   const [notice, setNotice] = useState("")
   const [error, setError] = useState("")
@@ -85,7 +89,7 @@ export function LoginPage({ csrfToken, onAuthenticated }: { csrfToken: string; o
         email: email.trim(),
         password,
       })
-      if (payload.user) onAuthenticated(payload.user)
+      if (payload.user && payload.csrfToken) onAuthenticated(payload.user, payload.csrfToken)
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Erro inesperado.")
     } finally {
@@ -203,7 +207,10 @@ export function LoginPage({ csrfToken, onAuthenticated }: { csrfToken: string; o
                   </div>
                 </label>
                 <label className="block text-sm font-medium">Confirmar nova senha
-                  <input className="mt-1.5 h-11 w-full rounded-md border border-black/20 px-3 outline-none focus:border-[#db0f0f]" type={showNewPassword ? "text" : "password"} autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required />
+                  <div className="relative mt-1.5">
+                    <input className="h-11 w-full rounded-md border border-black/20 px-3 pr-11 outline-none focus:border-[#db0f0f]" type={showConfirmation ? "text" : "password"} autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required />
+                    <button className="absolute inset-y-0 right-0 grid w-11 place-items-center text-[#6e6c67]" type="button" onClick={() => setShowConfirmation((current) => !current)} aria-label={showConfirmation ? "Ocultar senha" : "Mostrar senha"}>{showConfirmation ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button>
+                  </div>
                 </label>
                 <p className="text-xs text-[#6e6c67]">Use no mínimo 8 caracteres, com número e caractere especial.</p>
               </div>

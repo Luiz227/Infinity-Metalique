@@ -49,3 +49,8 @@ optgroup {
     text-decoration: none;
   }
 }
+/* Oculta o ícone nativo de senha do Edge */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}

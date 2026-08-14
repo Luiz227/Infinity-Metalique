@@ -51,9 +51,14 @@ export function NotificationsMenu({ user, csrfToken }: { user: User; csrfToken: 
   const unread = useMemo(() => items.filter((item) => !readIds.includes(item.id)).length, [items, readIds])
   const markAllRead = () => setReadIds(Array.from(new Set([...readIds, ...items.map((item) => item.id)])))
 
+  const changeOpen = (next: boolean) => {
+    setOpen(next)
+    if (next) void load()
+  }
+
   const openNotification = (item: Notification) => {
     setReadIds((current) => Array.from(new Set([...current, item.id])))
-    setOpen(false)
+    changeOpen(false)
     navigate(item.route)
     if (item.tab) window.setTimeout(() => window.dispatchEvent(new CustomEvent("metalique:quality-tab", { detail: item.tab })), 80)
   }
@@ -78,9 +83,12 @@ export function NotificationsMenu({ user, csrfToken }: { user: User; csrfToken: 
   }
 
   return (
-    <Popover open={open} onOpenChange={(next) => { setOpen(next); if (next) void load() }}>
+    <Popover open={open} onOpenChange={changeOpen}>
       <PopoverTrigger asChild>
-        <Button className="relative size-8 rounded-full bg-white p-0 text-black hover:bg-white/90 lg:size-[38px]" type="button" aria-label="Notificações" title="Notificações">
+        {/* `shrink-0` porque no cabeçalho este botão é item flex: sem ele o sino
+            encolheria junto quando a coluna aperta, em vez de o aperto ir todo
+            para o campo de busca. */}
+        <Button className="relative size-8 shrink-0 rounded-full bg-white p-0 text-black hover:bg-white/90 lg:size-[38px]" type="button" aria-label="Notificações" title="Notificações">
           <Bell className="size-4 lg:size-5" />
           {unread > 0 && <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-[#db0f0f] px-1 text-[9px] font-semibold leading-4 text-white ring-2 ring-[#db0f0f]">{Math.min(unread, 9)}{unread > 9 ? "+" : ""}</span>}
         </Button>

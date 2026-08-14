@@ -45,7 +45,7 @@ export function RequiredPasswordChangePage({ user, csrfToken, onChanged, onLogou
   user: User
   csrfToken: string
   onChanged: (user: User) => void
-  onLogout: () => void
+  onLogout: (csrfToken: string) => void
 }) {
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
@@ -87,8 +87,8 @@ export function RequiredPasswordChangePage({ user, csrfToken, onChanged, onLogou
   const logout = async () => {
     setIsLoggingOut(true)
     try {
-      await postJson<ApiResponse>("/backend/api/logout.php", { csrfToken })
-      onLogout()
+      const payload = await postJson<ApiResponse>("/backend/api/logout.php", { csrfToken })
+      if (payload.csrfToken) onLogout(payload.csrfToken)
     } finally {
       setIsLoggingOut(false)
     }

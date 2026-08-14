@@ -1,0 +1,5 @@
+{
+  "frontendUrl": "http://127.0.0.1:5173",
+  "backendUrl": "http://127.0.0.1:82",
+  "updateUrl": "http://127.0.0.1:82/desktop-updates"
+}

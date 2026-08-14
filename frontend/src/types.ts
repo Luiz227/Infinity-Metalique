@@ -11,6 +11,8 @@ export type PermissionKey =
   | "quality.employees"
   | "quality.satisfaction"
   | "quality.records"
+  | "piperun.view"
+  | "sige.view"
   | "users.manage"
 
 export type User = {

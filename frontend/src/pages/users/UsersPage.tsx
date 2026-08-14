@@ -1,8 +1,10 @@
 import { type FormEvent, useCallback, useEffect, useState } from "react"
-import { AlertTriangle, Check, Eye, EyeOff, LoaderCircle, Pencil, Plus, ShieldCheck, Trash2, UserRound, X } from "lucide-react"
+import { AlertTriangle, Check, ChevronDown, Eye, EyeOff, LoaderCircle, Pencil, Plus, ShieldCheck, SlidersHorizontal, Trash2, UserRound, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Combobox } from "@/components/ui/combobox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { getJson, postJson, profilePhotoUrl } from "@/lib/api"
 import type { PermissionKey } from "@/types"
 
@@ -88,6 +90,7 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
   const [permissionDefinitions, setPermissionDefinitions] = useState<PermissionDefinition[]>([])
   const [form, setForm] = useState<UserForm | null>(null)
   const [showPassword, setShowPassword] = useState(false)
+  const [openPermissionGroup, setOpenPermissionGroup] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [userToDelete, setUserToDelete] = useState<ManagedUser | null>(null)
@@ -115,6 +118,7 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
     if (user.is_primary_admin) return
     setError("")
     setShowPassword(false)
+    setOpenPermissionGroup(null)
     setForm({
       id: user.id,
       name: user.name,
@@ -164,6 +168,14 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
   const saveUser = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!form) return
+    if (!form.jobTitle.trim()) {
+      setError("Informe o cargo do usuário.")
+      return
+    }
+    if (!form.sector.trim()) {
+      setError("Informe o setor principal do usuário.")
+      return
+    }
     setIsSaving(true)
     setError("")
 
@@ -173,6 +185,7 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
         csrfToken,
       })
       setNotice(payload.message)
+      setOpenPermissionGroup(null)
       setForm(null)
       await loadUsers()
     } catch (requestError) {
@@ -212,6 +225,12 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
   const assignablePermissionKeys = new Set(
     permissionDefinitions.filter((permission) => permission.assignable !== false).map((permission) => permission.key)
   )
+  const jobTitles = Array.from(new Set(
+    users.map((user) => user.job_title.trim()).filter(Boolean)
+  )).sort((left, right) => left.localeCompare(right, "pt-BR"))
+  const sectors = Array.from(new Set(
+    users.map((user) => user.sector.trim()).filter(Boolean)
+  )).sort((left, right) => left.localeCompare(right, "pt-BR"))
 
   return (
     <>
@@ -220,7 +239,7 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
           <h1 className="text-[clamp(30px,2.4vw,43px)] font-medium leading-none">Usuários</h1>
           <p className="mt-2 text-sm text-[#52514e]">Contas, cargos e permissões de acesso ao sistema.</p>
         </div>
-        <Button className="rounded-full" type="button" onClick={() => { setError(""); setShowPassword(false); setForm({ ...emptyForm }) }}>
+        <Button className="rounded-full" type="button" onClick={() => { setError(""); setShowPassword(false); setOpenPermissionGroup(null); setForm({ ...emptyForm }) }}>
           <Plus /> Novo usuário
         </Button>
       </div>
@@ -326,12 +345,34 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
                 <label className="text-sm font-medium">Nome completo
                   <input className="mt-1.5 h-11 w-full rounded-md border border-black/20 px-3 outline-none focus:border-[#db0f0f]" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required maxLength={120} />
                 </label>
-                <label className="text-sm font-medium">Cargo
-                  <input className="mt-1.5 h-11 w-full rounded-md border border-black/20 px-3 outline-none focus:border-[#db0f0f]" value={form.jobTitle} onChange={(event) => setForm({ ...form, jobTitle: event.target.value })} required maxLength={100} />
-                </label>
-                <label className="text-sm font-medium">Setor principal
-                  <input className="mt-1.5 h-11 w-full rounded-md border border-black/20 px-3 outline-none focus:border-[#db0f0f]" value={form.sector} onChange={(event) => setForm({ ...form, sector: event.target.value })} required maxLength={120} placeholder="Ex.: Produção" />
-                </label>
+                <div className="text-sm font-medium">
+                  <label htmlFor="user-job-title">Cargo</label>
+                  <Combobox
+                    id="user-job-title"
+                    className="mt-1.5 h-11 rounded-md border-black/20"
+                    value={form.jobTitle}
+                    onChange={(jobTitle) => setForm({ ...form, jobTitle })}
+                    options={jobTitles}
+                    placeholder="Selecione o cargo"
+                    searchPlaceholder="Buscar ou digitar um novo"
+                    emptyLabel="Nenhum cargo encontrado."
+                    allowCreate
+                  />
+                </div>
+                <div className="text-sm font-medium">
+                  <label htmlFor="user-sector">Setor principal</label>
+                  <Combobox
+                    id="user-sector"
+                    className="mt-1.5 h-11 rounded-md border-black/20"
+                    value={form.sector}
+                    onChange={(sector) => setForm({ ...form, sector })}
+                    options={sectors}
+                    placeholder="Selecione o setor"
+                    searchPlaceholder="Buscar ou digitar um novo"
+                    emptyLabel="Nenhum setor encontrado."
+                    allowCreate
+                  />
+                </div>
                 <label className="text-sm font-medium">E-mail
                   <input className="mt-1.5 h-11 w-full rounded-md border border-black/20 px-3 outline-none focus:border-[#db0f0f]" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required maxLength={254} />
                 </label>
@@ -352,31 +393,82 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
                 </label>
               </div>
 
-              <div>
+              <div className="rounded-lg border border-black/10 bg-[#fafafa] p-4">
                 <div className="flex items-center justify-between gap-4">
-                  <h3 className="font-semibold">Permissões</h3>
-                  {form.role === "admin" && <span className="text-xs font-medium text-[#db0f0f]">Acesso total</span>}
-                </div>
-                {Object.entries(permissionGroups).map(([group, definitions]) => (
-                  <div className="mt-5" key={group}>
-                    <h4 className="text-sm font-semibold">{group}</h4>
-                    <p className="mt-1 text-xs text-[#6e6c67]">Selecione individualmente o que este usuário poderá acessar.</p>
-                    <div className="mt-3 grid overflow-hidden rounded-md border border-black/10 sm:grid-cols-2">
-                      {definitions.map((permission) => {
-                        const checked = form.role === "admin" || form.permissions.includes(permission.key)
-                        return (
-                          <label key={permission.key} className={`flex items-start gap-3 border-b border-black/10 p-4 sm:odd:border-r ${form.role === "admin" ? "cursor-not-allowed bg-neutral-50" : "cursor-pointer hover:bg-neutral-50"}`}>
-                            <input className="mt-0.5 size-4 accent-[#db0f0f]" type="checkbox" checked={checked} disabled={form.role === "admin"} onChange={() => togglePermission(permission.key)} />
-                            <span>
-                              <span className="block text-sm font-medium">{permission.label}</span>
-                              <span className="mt-0.5 block text-xs text-[#6e6c67]">{permission.description}</span>
-                            </span>
-                          </label>
-                        )
-                      })}
-                    </div>
+                  <div>
+                    <h3 className="font-semibold">Permissões de acesso</h3>
+                    <p className="mt-1 text-xs text-[#6e6c67]">Escolha o que este usuário poderá visualizar e administrar.</p>
                   </div>
-                ))}
+                  {form.role === "admin" && <span className="shrink-0 text-xs font-medium text-[#db0f0f]">Acesso total</span>}
+                </div>
+
+                <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                  {Object.entries(permissionGroups).map(([group, definitions]) => {
+                    const selectedGroupCount = form.role === "admin"
+                      ? definitions.length
+                      : definitions.filter((permission) => form.permissions.includes(permission.key)).length
+                    const isOpen = openPermissionGroup === group
+
+                    return (
+                      <Popover
+                        key={group}
+                        open={isOpen}
+                        onOpenChange={(open) => setOpenPermissionGroup(open ? group : null)}
+                      >
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            className="flex h-11 w-full items-center gap-2 rounded-lg border border-black/10 bg-white px-3 text-sm text-[#52514e] transition-colors hover:border-black/20 hover:bg-neutral-50"
+                          >
+                            <SlidersHorizontal className="size-4 shrink-0" />
+                            <span className="min-w-0 flex-1 truncate text-left font-medium">{group}</span>
+                            <span className="rounded-full bg-[#db0f0f] px-1.5 py-0.5 text-[11px] font-semibold text-white">
+                              {selectedGroupCount}/{definitions.length}
+                            </span>
+                            <ChevronDown className={`size-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                          </button>
+                        </PopoverTrigger>
+
+                        <PopoverContent align="start" className="w-[min(92vw,600px)]">
+                          <div className="border-b border-black/10 px-4 py-3">
+                            <h4 className="font-semibold">{group}</h4>
+                            <p className="mt-0.5 text-xs text-[#6e6c67]">
+                              {selectedGroupCount} de {definitions.length} permissões selecionadas
+                            </p>
+                          </div>
+                          <div className="grid max-h-[min(60vh,500px)] gap-2 overflow-y-auto p-4 sm:grid-cols-2">
+                            {definitions.map((permission) => {
+                              const checked = form.role === "admin" || form.permissions.includes(permission.key)
+                              return (
+                                <label
+                                  key={permission.key}
+                                  className={`flex items-start gap-3 rounded-lg border p-3 transition-colors ${
+                                    checked ? "border-[#db0f0f]/30 bg-red-50/60" : "border-black/10 bg-white"
+                                  } ${form.role === "admin" ? "cursor-not-allowed" : "cursor-pointer hover:border-black/20"}`}
+                                >
+                                  <input className="mt-0.5 size-4 shrink-0 accent-[#db0f0f]" type="checkbox" checked={checked} disabled={form.role === "admin"} onChange={() => togglePermission(permission.key)} />
+                                  <span>
+                                    <span className="block text-sm font-medium">{permission.label}</span>
+                                    <span className="mt-0.5 block text-xs leading-relaxed text-[#6e6c67]">{permission.description}</span>
+                                  </span>
+                                </label>
+                              )
+                            })}
+                          </div>
+                          <div className="flex justify-end border-t border-black/10 px-4 py-3">
+                            <button
+                              type="button"
+                              className="rounded-full bg-[#db0f0f] px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-[#c20d0d]"
+                              onClick={() => setOpenPermissionGroup(null)}
+                            >
+                              Fechar
+                            </button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    )
+                  })}
+                </div>
               </div>
 
               <label className="flex cursor-pointer items-center gap-3 text-sm font-medium">

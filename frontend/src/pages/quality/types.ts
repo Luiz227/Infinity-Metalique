@@ -62,6 +62,8 @@ export type QualityOptions = {
 export type QualityFilters = {
   year: number | null
   month: number | null
+  startDate: string | null
+  endDate: string | null
   shed: string | null
   gate: string | null
   problemType: string | null
@@ -85,6 +87,8 @@ export type QualityChartSelection = {
 export const emptyFilters: QualityFilters = {
   year: null,
   month: null,
+  startDate: null,
+  endDate: null,
   shed: null,
   gate: null,
   problemType: null,
