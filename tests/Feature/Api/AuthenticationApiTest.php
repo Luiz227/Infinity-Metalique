@@ -49,6 +49,27 @@ final class AuthenticationApiTest extends TestCase
         ])->assertOk();
     }
 
+    public function test_login_migra_hash_antigo_para_argon2id(): void
+    {
+        $user = User::factory()->create(['is_active' => true]);
+        DB::table('users')->where('id', $user->id)->update([
+            'password_hash' => password_hash('SenhaAntiga1!', PASSWORD_BCRYPT),
+        ]);
+        $user->refresh();
+        $this->assertStringStartsWith('$2y$', (string) $user->password_hash);
+
+        $csrf = $this->getJson('/backend/api/csrf.php')->json('csrfToken');
+        $this->postJson('/backend/api/login.php', [
+            'csrfToken' => $csrf,
+            'email' => $user->email,
+            'password' => 'SenhaAntiga1!',
+        ])->assertOk();
+
+        $newHash = (string) $user->fresh()->password_hash;
+        $this->assertStringStartsWith('$argon2id$', $newHash);
+        $this->assertTrue(Hash::check('SenhaAntiga1!', $newHash));
+    }
+
     public function test_post_sem_token_csrf_e_rejeitado(): void
     {
         $this->postJson('/backend/api/login.php', [])->assertStatus(419);

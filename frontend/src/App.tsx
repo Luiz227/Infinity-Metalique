@@ -45,6 +45,20 @@ function isQualityOnlyAccount(user: User): boolean {
     && !user.permissions.includes("sige.view")
 }
 
+let initialSessionRequest: Promise<ApiResponse> | null = null
+
+function loadInitialSession(): Promise<ApiResponse> {
+  if (!initialSessionRequest) {
+    initialSessionRequest = getJson<ApiResponse>("/backend/api/csrf.php", { cache: "no-store" })
+      .catch((error: unknown) => {
+        initialSessionRequest = null
+        throw error
+      })
+  }
+
+  return initialSessionRequest
+}
+
 function App() {
   const [route, setRoute] = useState<Route>(currentRoute())
   const [csrfToken, setCsrfToken] = useState("")
@@ -64,17 +78,37 @@ function App() {
   }, [])
 
   useEffect(() => {
-    const loadSession = async () => {
+    const handleRenewedCsrfToken = (event: Event) => {
+      setCsrfToken((event as CustomEvent<string>).detail)
+    }
+    window.addEventListener("metalique:csrf-token", handleRenewedCsrfToken)
+
+    return () => window.removeEventListener("metalique:csrf-token", handleRenewedCsrfToken)
+  }, [])
+
+  useEffect(() => {
+    let active = true
+
+    const restoreSession = async () => {
       try {
-        const payload = await getJson<ApiResponse>("/backend/api/csrf.php")
+        const payload = await loadInitialSession()
+        if (!active) return
         setCsrfToken(payload.csrfToken || "")
         setUser(payload.user || null)
+      } catch {
+        if (!active) return
+        setCsrfToken("")
+        setUser(null)
       } finally {
-        setIsLoading(false)
+        if (active) setIsLoading(false)
       }
     }
 
-    void loadSession()
+    void restoreSession()
+
+    return () => {
+      active = false
+    }
   }, [])
 
   useEffect(() => {

@@ -382,15 +382,17 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
                     <option value="admin">Administrador</option>
                   </select>
                 </label>
-                <label className="text-sm font-medium sm:col-span-2">{form.id ? "Nova senha (opcional)" : "Senha inicial"}
-                  <div className="relative mt-1.5">
-                    <input className="h-11 w-full rounded-md border border-black/20 px-3 pr-11 outline-none focus:border-[#db0f0f]" type={showPassword ? "text" : "password"} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required={!form.id} minLength={8} maxLength={72} autoComplete="new-password" />
-                    <button className="absolute inset-y-0 right-0 grid w-11 place-items-center text-[#6e6c67]" type="button" onClick={() => setShowPassword((current) => !current)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} title={showPassword ? "Ocultar senha" : "Mostrar senha"}>
-                      {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                    </button>
-                  </div>
-                  <span className="mt-1.5 block text-xs font-normal text-[#6e6c67]">Mínimo de 8 caracteres, com número e caractere especial.</span>
-                </label>
+                {!form.id && (
+                  <label className="text-sm font-medium sm:col-span-2">Senha temporária inicial
+                    <div className="relative mt-1.5">
+                      <input className="h-11 w-full rounded-md border border-black/20 px-3 pr-11 outline-none focus:border-[#db0f0f]" type={showPassword ? "text" : "password"} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required minLength={8} maxLength={72} autoComplete="new-password" />
+                      <button className="absolute inset-y-0 right-0 grid w-11 place-items-center text-[#6e6c67]" type="button" onClick={() => setShowPassword((current) => !current)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} title={showPassword ? "Ocultar senha" : "Mostrar senha"}>
+                        {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      </button>
+                    </div>
+                    <span className="mt-1.5 block text-xs font-normal text-[#6e6c67]">Mínimo de 8 caracteres, com número e caractere especial. O usuário deverá alterá-la no primeiro acesso.</span>
+                  </label>
+                )}
               </div>
 
               <div className="rounded-lg border border-black/10 bg-[#fafafa] p-4">

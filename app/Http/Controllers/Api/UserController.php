@@ -82,6 +82,11 @@ final class UserController extends Controller
         if ($id === 0 && $password === '') {
             return response()->json(['message' => 'Informe uma senha inicial.'], 422);
         }
+        if ($id > 0 && $password !== '') {
+            return response()->json([
+                'message' => 'Administradores não podem alterar a senha de outros usuários.',
+            ], 422);
+        }
         if ($password !== '' && ($error = Input::passwordPolicyError($password))) {
             return response()->json(['message' => $error], 422);
         }
@@ -131,10 +136,6 @@ final class UserController extends Controller
                         'role' => $role,
                         'is_active' => $isActive,
                     ];
-                    if ($password !== '') {
-                        $values['password_hash'] = Hash::make($password);
-                        $values['must_change_password'] = $id !== (int) $administrator->id;
-                    }
                     $target->forceFill($values)->save();
                     $message = 'Usuário atualizado com sucesso.';
                 } else {

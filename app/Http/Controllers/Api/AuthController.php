@@ -64,6 +64,15 @@ final class AuthController extends Controller
             return response()->json(['message' => 'E-mail ou senha inválidos.'], 401);
         }
 
+        // Atualiza hashes bcrypt/Argon antigos sem exigir uma troca adicional do usuário.
+        if (Hash::needsRehash((string) $user->password_hash)) {
+            try {
+                $user->forceFill(['password_hash' => Hash::make($password)])->save();
+            } catch (QueryException) {
+                return response()->json(['message' => 'Não foi possível atualizar a segurança da senha.'], 503);
+            }
+        }
+
         Auth::login($user);
         $request->session()->regenerate();
         UserPresence::touch((int) $user->getKey());
