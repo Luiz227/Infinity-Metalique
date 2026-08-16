@@ -51,6 +51,22 @@ export async function postJson<T>(url: string, body: unknown): Promise<T> {
   return readJson<T>(response)
 }
 
+export async function postForm<T>(url: string, form: FormData): Promise<T> {
+  const send = () => fetch(url, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  })
+
+  let response = await send()
+  if (response.status === 419) {
+    form.set("csrfToken", await renewCsrfToken())
+    response = await send()
+  }
+
+  return readJson<T>(response)
+}
+
 export function profilePhotoUrl(photo: string | null): string | null {
   if (!photo) return null
   return photo.startsWith("http") || photo.startsWith("/") ? photo : `/${photo}`

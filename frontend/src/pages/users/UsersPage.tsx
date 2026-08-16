@@ -4,7 +4,6 @@ import { AlertTriangle, Check, ChevronDown, Eye, EyeOff, LoaderCircle, Pencil, P
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { getJson, postJson, profilePhotoUrl } from "@/lib/api"
 import type { PermissionKey } from "@/types"
 
@@ -74,6 +73,7 @@ const QUALITY_ACTION_KEYS: PermissionKey[] = [
   "quality.manage",
   "quality.create_rap",
   "quality.create_dispatch",
+  "quality.import",
 ]
 
 function initials(name: string): string {
@@ -225,6 +225,10 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
   const assignablePermissionKeys = new Set(
     permissionDefinitions.filter((permission) => permission.assignable !== false).map((permission) => permission.key)
   )
+  const openGroupDefinitions = openPermissionGroup ? permissionGroups[openPermissionGroup] || [] : []
+  const openGroupSelectedCount = form?.role === "admin"
+    ? openGroupDefinitions.length
+    : openGroupDefinitions.filter((permission) => form?.permissions.includes(permission.key)).length
   const jobTitles = Array.from(new Set(
     users.map((user) => user.job_title.trim()).filter(Boolean)
   )).sort((left, right) => left.localeCompare(right, "pt-BR"))
@@ -412,65 +416,62 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
                     const isOpen = openPermissionGroup === group
 
                     return (
-                      <Popover
+                      <button
                         key={group}
-                        open={isOpen}
-                        onOpenChange={(open) => setOpenPermissionGroup(open ? group : null)}
+                        type="button"
+                        aria-expanded={isOpen}
+                        onClick={() => setOpenPermissionGroup(isOpen ? null : group)}
+                        className={`flex h-11 w-full items-center gap-2 rounded-lg border px-3 text-sm transition-colors ${
+                          isOpen
+                            ? "border-[#db0f0f] bg-red-50 text-[#b00c0c]"
+                            : "border-black/10 bg-white text-[#52514e] hover:border-black/20 hover:bg-neutral-50"
+                        }`}
                       >
-                        <PopoverTrigger asChild>
-                          <button
-                            type="button"
-                            className="flex h-11 w-full items-center gap-2 rounded-lg border border-black/10 bg-white px-3 text-sm text-[#52514e] transition-colors hover:border-black/20 hover:bg-neutral-50"
-                          >
-                            <SlidersHorizontal className="size-4 shrink-0" />
-                            <span className="min-w-0 flex-1 truncate text-left font-medium">{group}</span>
-                            <span className="rounded-full bg-[#db0f0f] px-1.5 py-0.5 text-[11px] font-semibold text-white">
-                              {selectedGroupCount}/{definitions.length}
-                            </span>
-                            <ChevronDown className={`size-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-                          </button>
-                        </PopoverTrigger>
-
-                        <PopoverContent align="start" className="w-[min(92vw,600px)]">
-                          <div className="border-b border-black/10 px-4 py-3">
-                            <h4 className="font-semibold">{group}</h4>
-                            <p className="mt-0.5 text-xs text-[#6e6c67]">
-                              {selectedGroupCount} de {definitions.length} permissões selecionadas
-                            </p>
-                          </div>
-                          <div className="grid max-h-[min(60vh,500px)] gap-2 overflow-y-auto p-4 sm:grid-cols-2">
-                            {definitions.map((permission) => {
-                              const checked = form.role === "admin" || form.permissions.includes(permission.key)
-                              return (
-                                <label
-                                  key={permission.key}
-                                  className={`flex items-start gap-3 rounded-lg border p-3 transition-colors ${
-                                    checked ? "border-[#db0f0f]/30 bg-red-50/60" : "border-black/10 bg-white"
-                                  } ${form.role === "admin" ? "cursor-not-allowed" : "cursor-pointer hover:border-black/20"}`}
-                                >
-                                  <input className="mt-0.5 size-4 shrink-0 accent-[#db0f0f]" type="checkbox" checked={checked} disabled={form.role === "admin"} onChange={() => togglePermission(permission.key)} />
-                                  <span>
-                                    <span className="block text-sm font-medium">{permission.label}</span>
-                                    <span className="mt-0.5 block text-xs leading-relaxed text-[#6e6c67]">{permission.description}</span>
-                                  </span>
-                                </label>
-                              )
-                            })}
-                          </div>
-                          <div className="flex justify-end border-t border-black/10 px-4 py-3">
-                            <button
-                              type="button"
-                              className="rounded-full bg-[#db0f0f] px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-[#c20d0d]"
-                              onClick={() => setOpenPermissionGroup(null)}
-                            >
-                              Fechar
-                            </button>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
+                        <SlidersHorizontal className="size-4 shrink-0" />
+                        <span className="min-w-0 flex-1 truncate text-left font-medium">{group}</span>
+                        <span className="rounded-full bg-[#db0f0f] px-1.5 py-0.5 text-[11px] font-semibold text-white">
+                          {selectedGroupCount}/{definitions.length}
+                        </span>
+                        <ChevronDown className={`size-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                      </button>
                     )
                   })}
                 </div>
+
+                {openPermissionGroup && (
+                  <div className="mt-3 overflow-hidden rounded-lg border border-black/10 bg-white">
+                    <div className="flex items-center justify-between gap-3 border-b border-black/10 px-4 py-3">
+                      <div>
+                        <h4 className="font-semibold">{openPermissionGroup}</h4>
+                        <p className="mt-0.5 text-xs text-[#6e6c67]">
+                          {openGroupSelectedCount} de {openGroupDefinitions.length} permissões selecionadas
+                        </p>
+                      </div>
+                      <Button variant="ghost" size="icon" type="button" onClick={() => setOpenPermissionGroup(null)} aria-label="Recolher permissões">
+                        <X />
+                      </Button>
+                    </div>
+                    <div className="grid gap-2 p-3 sm:grid-cols-2">
+                      {openGroupDefinitions.map((permission) => {
+                        const checked = form.role === "admin" || form.permissions.includes(permission.key)
+                        return (
+                          <label
+                            key={permission.key}
+                            className={`flex min-w-0 items-start gap-3 rounded-lg border p-3 transition-colors ${
+                              checked ? "border-[#db0f0f]/30 bg-red-50/60" : "border-black/10 bg-white"
+                            } ${form.role === "admin" ? "cursor-not-allowed" : "cursor-pointer hover:border-black/20"}`}
+                          >
+                            <input className="mt-0.5 size-4 shrink-0 accent-[#db0f0f]" type="checkbox" checked={checked} disabled={form.role === "admin"} onChange={() => togglePermission(permission.key)} />
+                            <span className="min-w-0">
+                              <span className="block text-sm font-medium">{permission.label}</span>
+                              <span className="mt-0.5 block text-xs leading-relaxed text-[#6e6c67]">{permission.description}</span>
+                            </span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <label className="flex cursor-pointer items-center gap-3 text-sm font-medium">

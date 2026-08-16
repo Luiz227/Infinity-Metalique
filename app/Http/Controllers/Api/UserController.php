@@ -95,7 +95,7 @@ final class UserController extends Controller
             $permissions = Permissions::keys();
         } else {
             $quality = [
-                'quality.manage', 'quality.create_rap', 'quality.create_dispatch',
+                'quality.manage', 'quality.create_rap', 'quality.create_dispatch', 'quality.import',
                 'quality.raps', 'quality.units', 'quality.products', 'quality.dispatches',
                 'quality.employees', 'quality.satisfaction', 'quality.records',
             ];

@@ -216,6 +216,7 @@ function App() {
                   permissions={user.permissions || []}
                   canCreateRap={user.role === "admin" || user.permissions.includes("quality.create_rap")}
                   canCreateDispatch={user.role === "admin" || user.permissions.includes("quality.create_dispatch")}
+                  canImport={user.role === "admin" || user.permissions.includes("quality.import")}
                   canDelete={user.role === "admin" || user.permissions.includes("quality.manage")}
                   tabsInHeader={isQualityOnlyAccount(user)}
                 />

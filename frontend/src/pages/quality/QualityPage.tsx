@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ClipboardList, LoaderCircle, MousePointerClick, PackagePlus } from "lucide-react"
+import { ClipboardList, FileUp, LoaderCircle, MousePointerClick, PackagePlus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { getJson, postJson } from "@/lib/api"
 import { FilterBar } from "@/pages/quality/FilterBar"
 import { DispatchForm } from "@/pages/quality/forms/DispatchForm"
 import { RapForm } from "@/pages/quality/forms/RapForm"
+import { QualityImportDialog } from "@/pages/quality/QualityImportDialog"
 import { PrintSheet } from "@/pages/quality/print/PrintSheet"
 import { DispatchSection } from "@/pages/quality/sections/DispatchSection"
 import { ProductsSection } from "@/pages/quality/sections/ProductsSection"
@@ -49,10 +50,11 @@ type PrintTarget = { kind: "report" | "dispatch"; id: number }
  *
  * Devolve só o conteúdo do painel - a moldura e o cabeçalho vêm do AppShell.
  */
-export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canDelete, permissions, tabsInHeader }: {
+export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canImport, canDelete, permissions, tabsInHeader }: {
   csrfToken: string
   canCreateRap: boolean
   canCreateDispatch: boolean
+  canImport: boolean
   canDelete: boolean
   permissions: PermissionKey[]
   tabsInHeader: boolean
@@ -74,6 +76,7 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canDel
   const [error, setError] = useState("")
   const [notice, setNotice] = useState("")
   const [openForm, setOpenForm] = useState<"rap" | "dispatch" | null>(null)
+  const [isImportOpen, setIsImportOpen] = useState(false)
   const [printTarget, setPrintTarget] = useState<PrintTarget | null>(null)
   const [printReport, setPrintReport] = useState<ReportDetail | null>(null)
   const [printDispatch, setPrintDispatch] = useState<DispatchDetail | null>(null)
@@ -370,8 +373,13 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canDel
           </p>
         </div>
 
-        {visibleTabs.length > 0 && (canCreateRap || canCreateDispatch) && (
+        {(visibleTabs.length > 0 || canImport) && (canCreateRap || canCreateDispatch || canImport) && (
           <div className="flex flex-wrap gap-2">
+            {canImport && (
+              <Button type="button" variant="outline" className="rounded-full" onClick={() => setIsImportOpen(true)}>
+                <FileUp /> Importar planilha
+              </Button>
+            )}
             {canCreateDispatch && (
               <Button type="button" variant="outline" className="rounded-full" onClick={() => setOpenForm("dispatch")} disabled={!options}>
                 <PackagePlus /> Nova coleta
@@ -554,6 +562,19 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canDel
           inline={isActionOnly}
           onClose={() => setOpenForm(null)}
           onCreated={(code) => afterCreate(`Coleta ${code} registrada.`)}
+        />
+      )}
+
+      {canImport && (
+        <QualityImportDialog
+          open={isImportOpen}
+          csrfToken={csrfToken}
+          onOpenChange={setIsImportOpen}
+          onImported={() => {
+            setNotice("Dados da Qualidade atualizados pela planilha.")
+            void load()
+            void getJson<QualityOptions>("/backend/api/quality/options.php").then(setOptions)
+          }}
         />
       )}
 

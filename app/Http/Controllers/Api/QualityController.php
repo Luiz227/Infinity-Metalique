@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\QualityImportService;
 use App\Services\QualityService;
 use App\Services\UploadService;
 use Illuminate\Database\QueryException;
@@ -15,6 +16,48 @@ use RuntimeException;
 
 final class QualityController extends Controller
 {
+    public function importPreview(Request $request, QualityImportService $imports): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $request->validate(['file' => ['required', 'file', 'max:15360']]);
+
+        try {
+            return response()->json($imports->preview($request->file('file'), (int) $user->id), 201);
+        } catch (RuntimeException $error) {
+            return response()->json(['message' => $error->getMessage()], 422);
+        } catch (QueryException) {
+            return response()->json(['message' => 'Não foi possível preparar a importação no banco de dados.'], 503);
+        }
+    }
+
+    public function importConfirm(Request $request, QualityImportService $imports): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $token = trim((string) $request->input('token', ''));
+        if ($token === '') {
+            return response()->json(['message' => 'Gere uma prévia antes de confirmar a importação.'], 422);
+        }
+
+        try {
+            return response()->json($imports->confirm($token, (int) $user->id));
+        } catch (RuntimeException $error) {
+            return response()->json(['message' => $error->getMessage()], 422);
+        } catch (QueryException) {
+            return response()->json(['message' => 'A importação não pôde ser concluída. Nenhum dado foi alterado.'], 503);
+        }
+    }
+
+    public function importHistory(QualityImportService $imports): JsonResponse
+    {
+        try {
+            return response()->json(['items' => $imports->history()]);
+        } catch (QueryException) {
+            return response()->json(['message' => 'Não foi possível carregar o histórico de importações.'], 503);
+        }
+    }
+
     public function options(QualityService $quality): JsonResponse
     {
         try {

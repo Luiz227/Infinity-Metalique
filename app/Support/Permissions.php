@@ -13,6 +13,7 @@ final class Permissions
         'quality.manage' => ['group' => 'Qualidade', 'label' => 'Excluir registros da Qualidade', 'description' => 'Excluir RAPs e produtos coletados existentes.'],
         'quality.create_rap' => ['group' => 'Qualidade', 'label' => 'Criar novo RAP', 'description' => 'Exibir o botão Novo RAP e registrar apontamentos.'],
         'quality.create_dispatch' => ['group' => 'Qualidade', 'label' => 'Criar nova coleta', 'description' => 'Exibir o botão Nova coleta e registrar produtos coletados.'],
+        'quality.import' => ['group' => 'Qualidade', 'label' => 'Importar planilha', 'description' => 'Importar e atualizar os dados da Qualidade por uma planilha Excel.'],
         'quality.raps' => ['group' => 'Qualidade', 'label' => 'RAPs', 'description' => 'Visualizar os indicadores de relatórios de ação preventiva.'],
         'quality.units' => ['group' => 'Qualidade', 'label' => 'Unidades', 'description' => 'Visualizar indicadores por barracão e gate.'],
         'quality.products' => ['group' => 'Qualidade', 'label' => 'Produtos', 'description' => 'Visualizar indicadores por máquina e modelo.'],

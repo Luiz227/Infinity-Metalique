@@ -4,6 +4,7 @@ export type PermissionKey =
   | "quality.manage"
   | "quality.create_rap"
   | "quality.create_dispatch"
+  | "quality.import"
   | "quality.raps"
   | "quality.units"
   | "quality.products"

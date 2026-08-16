@@ -68,6 +68,15 @@ Route::prefix('backend/api')->group(function (): void {
             Route::post('dispatch-create.php', [QualityController::class, 'createDispatch'])
                 ->withoutMiddleware('permission:quality.view')
                 ->middleware(['api.csrf', 'permission:quality.create_dispatch']);
+            Route::post('import-preview.php', [QualityController::class, 'importPreview'])
+                ->withoutMiddleware('permission:quality.view')
+                ->middleware(['api.csrf', 'permission:quality.import']);
+            Route::post('import-confirm.php', [QualityController::class, 'importConfirm'])
+                ->withoutMiddleware('permission:quality.view')
+                ->middleware(['api.csrf', 'permission:quality.import']);
+            Route::get('import-history.php', [QualityController::class, 'importHistory'])
+                ->withoutMiddleware('permission:quality.view')
+                ->middleware('permission:quality.import');
             Route::post('report-delete.php', [QualityController::class, 'deleteReport'])
                 ->withoutMiddleware('permission:quality.view')
                 ->middleware(['api.csrf', 'permission:quality.manage']);

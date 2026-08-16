@@ -67,7 +67,7 @@ class User extends Authenticatable
             ->all();
 
         if (array_intersect(
-            ['quality.manage', 'quality.create_rap', 'quality.create_dispatch'],
+            ['quality.manage', 'quality.create_rap', 'quality.create_dispatch', 'quality.import'],
             $permissions
         ) !== []) {
             $permissions[] = 'quality.view';
