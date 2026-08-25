@@ -50,14 +50,14 @@ export function ExternalAppPage({ appId, name }: { appId: ExternalAppId; name: s
           <div ref={hostRef} className="size-full min-h-0 min-w-0 overflow-hidden" />
           {isLoading && (
             <div className="absolute inset-0 flex items-center justify-center gap-3 bg-white text-sm text-neutral-600">
-              <LoaderCircle className="size-5 animate-spin text-[#db0f0f]" />
+              <LoaderCircle className="size-5 animate-spin text-metalique" />
               Carregando {name}...
             </div>
           )}
         </>
       ) : (
         <div className="mx-6 max-w-md text-center">
-          <AppWindow className="mx-auto size-10 text-[#db0f0f]" />
+          <AppWindow className="mx-auto size-10 text-metalique" />
           <h1 className="mt-4 text-2xl font-semibold">{name} disponível no aplicativo desktop</h1>
           <p className="mt-2 text-sm leading-6 text-neutral-600">
             Execute o Infinity Desktop para visualizar e utilizar o {name} dentro deste painel.

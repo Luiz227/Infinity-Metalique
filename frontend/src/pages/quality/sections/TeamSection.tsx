@@ -70,6 +70,7 @@ export function TeamSection({
         table={{ head: ["Colaborador", "Participações"], rows: data.reportsByEmployee.map((row) => [row.label, row.value]) }}
       >
           <RankingBars
+            animationKey="quality:team:employee"
             data={data.reportsByEmployee}
             measure="participações"
             highlightData={employeeHighlight}
@@ -94,6 +95,7 @@ export function TeamSection({
           }}
         >
           <ShareDonut
+            animationKey="quality:team:code-share"
             data={data.reportsByCode}
             measure="RAPs"
             highlightData={selection && highlight ? highlight.reportsByCode : null}
@@ -109,10 +111,11 @@ export function TeamSection({
         <ChartCard
           title="Evolução dos apontamentos"
           description="Acompanha se a orientação individual está surtindo efeito."
-          help="A linha vermelha é a participação do colaborador selecionado mês a mês, sobre a linha cinza do total. Depois de uma orientação, é aqui que se vê o efeito: a linha vermelha deve descer enquanto a cinza segue o próprio caminho."
+          help="A linha cheia é a participação do colaborador selecionado mês a mês, sobre a linha cinza do total. Depois de uma orientação, é aqui que se vê o efeito: a linha cheia deve descer enquanto a cinza segue o próprio caminho. A reta tracejada é a tendência linear dessa mesma série - ela fecha a conta que o sobe-e-desce mês a mês não deixa ver."
           table={{ head: ["Mês", "RAPs"], rows: data.reportsByPeriod.map((row) => [row.label, row.value]) }}
         >
           <TrendLine
+            animationKey="quality:team:period-trend"
             data={data.reportsByPeriod}
             measure="RAPs"
             highlightData={selection && highlight ? highlight.reportsByPeriod : null}

@@ -11,23 +11,31 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { cn } from "@/lib/utils"
 
-export type RecordKind = "report" | "dispatch"
+export type RecordKind = "report" | "dispatch" | "complaint" | "plan"
 export type RecordTarget = { kind: RecordKind; id: number; code: string }
 export type DeleteResult = { success: boolean; message: string }
 
-export function RecordDeleteButton({ target, onSelect }: {
+/** As classes de tamanho ficam de fora para a tabela densa poder encolhê-lo. */
+export function RecordDeleteButton({ target, onSelect, className, iconClassName }: {
   target: RecordTarget
   onSelect: (target: RecordTarget) => void
+  className?: string
+  iconClassName?: string
 }) {
   return (
     <button
       type="button"
-      className="inline-flex items-center gap-1 rounded-full border border-red-200 px-2.5 py-1 text-xs text-red-700 hover:bg-red-50"
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border border-red-200 text-red-700 hover:bg-red-50",
+        "px-2.5 py-1 text-xs",
+        className,
+      )}
       onClick={() => onSelect(target)}
       aria-label={`Excluir ${target.code}`}
     >
-      <Trash2 className="size-3.5" /> Excluir
+      <Trash2 className={cn("size-3.5", iconClassName)} /> Excluir
     </button>
   )
 }
@@ -85,6 +93,8 @@ export function RecordDeleteDialog({ target, onOpenChange, onDelete }: {
               <DialogDescription>
                 Esta ação é permanente e não pode ser desfeita.
                 {target?.kind === "dispatch" && " As fotos vinculadas ao RETIR também serão removidas."}
+                {target?.kind === "complaint" && " A taxa de satisfação será recalculada sem este registro, e o plano de ação vinculado sai junto."}
+                {target?.kind === "plan" && " Todos os andamentos registrados nele serão perdidos; a reclamação continua."}
               </DialogDescription>
             </DialogHeader>
 

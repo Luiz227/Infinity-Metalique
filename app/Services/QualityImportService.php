@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Support\QualityRevision;
 use DateTimeImmutable;
 use DateTimeInterface;
 use Illuminate\Http\UploadedFile;
@@ -92,6 +93,7 @@ final class QualityImportService
                 'confirmed_at' => now(),
                 'updated_at' => now(),
             ]);
+            QualityRevision::bump();
 
             return [
                 'message' => 'Planilha importada com sucesso.',
@@ -380,7 +382,7 @@ final class QualityImportService
                 'report_date' => $record['date'], 'action_type' => $record['actionType'] ?: 'CORREÇÃO',
                 'client_id' => $this->clientId($record['client']), 'machine_type_id' => $this->machineTypeId($record['machineType']),
                 'model' => $record['model'] ?: null, 'shed' => $record['shed'] ?: null, 'sector' => $record['sector'] ?: null,
-                'gate' => $record['gate'] ?: null, 'problem_type' => $record['problemType'] ?: null,
+                'gate' => $this->gateName($record['gate']), 'problem_type' => $record['problemType'] ?: null,
                 'quality_code_id' => $this->qualityCodeId($record['qualityCode']), 'description' => $record['description'] ?: null,
                 'needs_checklist_update' => $record['needsUpdate'], 'immediate_action' => $record['immediateAction'] ?: null,
                 'updated_at' => now(),
@@ -477,6 +479,23 @@ final class QualityImportService
         DB::table('machine_types')->insertOrIgnore(['name' => $name]);
 
         return (int) DB::table('machine_types')->where('name', $name)->value('id');
+    }
+
+    /**
+     * A planilha pode trazer um gate que ainda não está no catálogo. Registrá-lo
+     * aqui - como já se faz com código e tipo de máquina - mantém `quality_gates`
+     * como a lista completa: sem isso o gate apareceria nos gráficos e sumiria
+     * do filtro e da engrenagem.
+     */
+    private function gateName(string $gate): ?string
+    {
+        $gate = mb_substr($gate, 0, 30);
+        if ($gate === '') {
+            return null;
+        }
+        DB::table('quality_gates')->insertOrIgnore(['name' => $gate, 'position' => 999, 'is_active' => true]);
+
+        return $gate;
     }
 
     private function qualityCodeId(string $code): ?int

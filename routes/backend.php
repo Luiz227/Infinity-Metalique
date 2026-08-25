@@ -2,10 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\ActionPlanController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\GeneralController;
+use App\Http\Controllers\Api\PreferencesController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\QualityController;
+use App\Http\Controllers\Api\QualitySettingsController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -13,6 +17,8 @@ Route::prefix('backend/api')->group(function (): void {
     Route::get('csrf.php', [AuthController::class, 'csrf']);
     Route::get('session.php', [AuthController::class, 'session']);
     Route::get('summary.php', [GeneralController::class, 'summary']);
+    // Pública como a Home que a consome: a aba Contato mostra os ramais sem sessão.
+    Route::get('contact.php', [ContactController::class, 'index']);
 
     Route::middleware('api.csrf')->group(function (): void {
         Route::post('login.php', [AuthController::class, 'login']);
@@ -33,6 +39,8 @@ Route::prefix('backend/api')->group(function (): void {
         Route::get('notifications.php', [GeneralController::class, 'notifications']);
         Route::post('profile-update.php', [ProfileController::class, 'update'])->middleware('api.csrf');
         Route::post('profile-photo.php', [ProfileController::class, 'photo'])->middleware('api.csrf');
+        // Só a escrita tem rota: as preferências já saem em csrf.php e session.php.
+        Route::post('preferences-save.php', [PreferencesController::class, 'save'])->middleware('api.csrf');
 
         /*
          * O Dashboard consome apenas consultas. Ele tem rotas próprias para que
@@ -41,6 +49,7 @@ Route::prefix('backend/api')->group(function (): void {
          */
         Route::prefix('dashboard')->middleware('permission:dashboard.view')->group(function (): void {
             Route::get('supervisors.php', [GeneralController::class, 'supervisors']);
+            Route::get('quality-revision.php', [QualityController::class, 'revision']);
             Route::get('quality.php', [QualityController::class, 'dashboard']);
             Route::get('quality-reports.php', [QualityController::class, 'reports']);
             Route::get('quality-dispatches.php', [QualityController::class, 'dispatches']);
@@ -53,21 +62,58 @@ Route::prefix('backend/api')->group(function (): void {
             Route::post('user-delete.php', [UserController::class, 'delete'])->middleware('api.csrf');
             Route::post('password-reset-decision.php', [UserController::class, 'decidePasswordReset'])
                 ->middleware('api.csrf');
+            Route::get('contact.php', [ContactController::class, 'admin'])
+                ->middleware('permission:contact.manage');
+            Route::post('contact-save.php', [ContactController::class, 'save'])
+                ->middleware(['api.csrf', 'permission:contact.manage']);
         });
 
         Route::prefix('quality')->middleware('permission:quality.view')->group(function (): void {
+            Route::get('revision.php', [QualityController::class, 'revision']);
             Route::get('options.php', [QualityController::class, 'options']);
             Route::get('dashboard.php', [QualityController::class, 'dashboard']);
             Route::get('reports.php', [QualityController::class, 'reports']);
             Route::get('report.php', [QualityController::class, 'report']);
             Route::get('dispatches.php', [QualityController::class, 'dispatches']);
             Route::get('dispatch.php', [QualityController::class, 'dispatch']);
+            Route::get('complaints.php', [QualityController::class, 'complaints']);
+            Route::get('complaint.php', [QualityController::class, 'complaint']);
+            Route::get('action-plans.php', [ActionPlanController::class, 'index']);
+            Route::get('action-plan.php', [ActionPlanController::class, 'show']);
+            /*
+             * O plano de ação é a tratativa da reclamação, então ele reaproveita
+             * a permissão de quem já lança a reclamação: quem registra, trata.
+             */
+            Route::post('action-plan-create.php', [ActionPlanController::class, 'create'])
+                ->withoutMiddleware('permission:quality.view')
+                ->middleware(['api.csrf', 'permission:quality.create_complaint']);
+            Route::post('action-plan-entry.php', [ActionPlanController::class, 'entry'])
+                ->withoutMiddleware('permission:quality.view')
+                ->middleware(['api.csrf', 'permission:quality.create_complaint']);
+            Route::post('action-plan-close.php', [ActionPlanController::class, 'close'])
+                ->withoutMiddleware('permission:quality.view')
+                ->middleware(['api.csrf', 'permission:quality.create_complaint']);
+            Route::post('action-plan-delete.php', [ActionPlanController::class, 'delete'])
+                ->withoutMiddleware('permission:quality.view')
+                ->middleware(['api.csrf', 'permission:quality.manage']);
             Route::post('report-create.php', [QualityController::class, 'createReport'])
                 ->withoutMiddleware('permission:quality.view')
                 ->middleware(['api.csrf', 'permission:quality.create_rap']);
             Route::post('dispatch-create.php', [QualityController::class, 'createDispatch'])
                 ->withoutMiddleware('permission:quality.view')
                 ->middleware(['api.csrf', 'permission:quality.create_dispatch']);
+            Route::post('complaint-create.php', [QualityController::class, 'createComplaint'])
+                ->withoutMiddleware('permission:quality.view')
+                ->middleware(['api.csrf', 'permission:quality.create_complaint']);
+            Route::post('report-update.php', [QualityController::class, 'updateReport'])
+                ->withoutMiddleware('permission:quality.view')
+                ->middleware(['api.csrf', 'permission:quality.edit']);
+            Route::post('dispatch-update.php', [QualityController::class, 'updateDispatch'])
+                ->withoutMiddleware('permission:quality.view')
+                ->middleware(['api.csrf', 'permission:quality.edit']);
+            Route::post('complaint-update.php', [QualityController::class, 'updateComplaint'])
+                ->withoutMiddleware('permission:quality.view')
+                ->middleware(['api.csrf', 'permission:quality.edit']);
             Route::post('import-preview.php', [QualityController::class, 'importPreview'])
                 ->withoutMiddleware('permission:quality.view')
                 ->middleware(['api.csrf', 'permission:quality.import']);
@@ -81,6 +127,15 @@ Route::prefix('backend/api')->group(function (): void {
                 ->withoutMiddleware('permission:quality.view')
                 ->middleware(['api.csrf', 'permission:quality.manage']);
             Route::post('dispatch-delete.php', [QualityController::class, 'deleteDispatch'])
+                ->withoutMiddleware('permission:quality.view')
+                ->middleware(['api.csrf', 'permission:quality.manage']);
+            Route::post('complaint-delete.php', [QualityController::class, 'deleteComplaint'])
+                ->withoutMiddleware('permission:quality.view')
+                ->middleware(['api.csrf', 'permission:quality.manage']);
+            Route::get('settings.php', [QualitySettingsController::class, 'show'])
+                ->withoutMiddleware('permission:quality.view')
+                ->middleware('permission:quality.manage');
+            Route::post('settings-save.php', [QualitySettingsController::class, 'save'])
                 ->withoutMiddleware('permission:quality.view')
                 ->middleware(['api.csrf', 'permission:quality.manage']);
         });

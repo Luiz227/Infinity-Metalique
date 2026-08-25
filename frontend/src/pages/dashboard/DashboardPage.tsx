@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react"
+import { Fragment, useEffect, useMemo, useRef, useState } from "react"
 import {
   CalendarDays,
   ChevronDown,
@@ -14,7 +14,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Scroller } from "@/components/ui/scroller"
 import { getJson } from "@/lib/api"
+import { HORIZONTAL_TABLE } from "@/lib/smoothScroll"
+import { useQualityLiveRefresh } from "@/lib/useQualityLiveRefresh"
 import { ChartCard } from "@/pages/quality/charts/ChartCard"
 import { TrendColumns } from "@/pages/quality/charts/QualityCharts"
 import { formatDate } from "@/pages/quality/format"
@@ -30,6 +33,7 @@ type HistoryKind = "all" | "report" | "dispatch"
 type SupervisorPresence = "online" | "away" | "offline"
 type SectorSupervisor = { id: number; name: string; sector: string; jobTitle: string; presence: SupervisorPresence }
 type SupervisorsResponse = { supervisors: SectorSupervisor[] }
+type RevisionPayload = { revision: string }
 
 const SUPERVISOR_PRESENCE: Record<SupervisorPresence, { className: string; label: string }> = {
   online: { className: "text-[#16803a]", label: "Online" },
@@ -117,14 +121,14 @@ function DateRangeFilter({ value, onChange }: { value: DateRange; onChange: (ran
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex h-10 items-center gap-2 rounded-full border border-black/8 bg-white px-4 text-sm text-[#0b0b0b] shadow-[0_1px_2px_rgba(11,11,11,0.04)] transition-colors hover:border-black/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#db0f0f]/30"
+          className="flex h-10 items-center gap-2 rounded-full border border-hairline bg-white px-4 text-sm text-ink transition-colors hover:border-hairline-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-metalique/30"
           aria-label={`Filtrar período: ${displayInputDate(value.startDate)} até ${displayInputDate(value.endDate)}`}
         >
-          <CalendarDays className="size-4 text-[#52514e]" />
+          <CalendarDays className="size-4 text-ink-soft" />
           <span className="whitespace-nowrap">
             {displayInputDate(value.startDate)} – {displayInputDate(value.endDate)}
           </span>
-          <ChevronDown className={`size-4 text-[#898781] transition-transform ${isOpen ? "rotate-180" : ""}`} />
+          <ChevronDown className={`size-4 text-ink-muted transition-transform ${isOpen ? "rotate-180" : ""}`} />
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[min(92vw,370px)] p-4">
@@ -133,15 +137,15 @@ function DateRangeFilter({ value, onChange }: { value: DateRange; onChange: (ran
             <p className="text-sm font-semibold">Período do dashboard</p>
             <p className="mt-1 text-xs text-[#73716c]">O intervalo atualiza todos os dados abaixo.</p>
           </div>
-          <CalendarDays className="mt-0.5 size-5 text-[#db0f0f]" />
+          <CalendarDays className="mt-0.5 size-5 text-metalique" />
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-3">
-          <label className="grid gap-1.5 text-xs font-medium text-[#52514e]">
+          <label className="grid gap-1.5 text-xs font-medium text-ink-soft">
             Data inicial
             <input
               type="date"
-              className="h-10 min-w-0 rounded-lg border border-black/10 px-3 text-sm text-[#0b0b0b] outline-none focus:border-[#db0f0f]/40 focus:ring-2 focus:ring-[#db0f0f]/20"
+              className="h-10 min-w-0 rounded-lg border border-hairline px-3 text-sm text-ink outline-none focus:border-metalique/40 focus:ring-2 focus:ring-metalique/20"
               value={draft.startDate}
               max={draft.endDate || undefined}
               onChange={(event) => {
@@ -150,11 +154,11 @@ function DateRangeFilter({ value, onChange }: { value: DateRange; onChange: (ran
               }}
             />
           </label>
-          <label className="grid gap-1.5 text-xs font-medium text-[#52514e]">
+          <label className="grid gap-1.5 text-xs font-medium text-ink-soft">
             Data final
             <input
               type="date"
-              className="h-10 min-w-0 rounded-lg border border-black/10 px-3 text-sm text-[#0b0b0b] outline-none focus:border-[#db0f0f]/40 focus:ring-2 focus:ring-[#db0f0f]/20"
+              className="h-10 min-w-0 rounded-lg border border-hairline px-3 text-sm text-ink outline-none focus:border-metalique/40 focus:ring-2 focus:ring-metalique/20"
               value={draft.endDate}
               min={draft.startDate || undefined}
               onChange={(event) => {
@@ -168,14 +172,14 @@ function DateRangeFilter({ value, onChange }: { value: DateRange; onChange: (ran
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"
-            className="rounded-full bg-[#f2f2f2] px-3 py-1.5 text-xs text-[#52514e] hover:bg-[#e8e8e8]"
+            className="rounded-full bg-[#f2f2f2] px-3 py-1.5 text-xs text-ink-soft hover:bg-[#e8e8e8]"
             onClick={() => applyShortcut(currentMonthRange())}
           >
             Este mês
           </button>
           <button
             type="button"
-            className="rounded-full bg-[#f2f2f2] px-3 py-1.5 text-xs text-[#52514e] hover:bg-[#e8e8e8]"
+            className="rounded-full bg-[#f2f2f2] px-3 py-1.5 text-xs text-ink-soft hover:bg-[#e8e8e8]"
             onClick={() => applyShortcut(currentYearRange())}
           >
             Este ano
@@ -187,14 +191,14 @@ function DateRangeFilter({ value, onChange }: { value: DateRange; onChange: (ran
         <div className="mt-4 flex justify-end gap-2 border-t border-[#efeee9] pt-3">
           <button
             type="button"
-            className="rounded-full px-4 py-2 text-sm text-[#52514e] hover:bg-neutral-100"
+            className="rounded-full px-4 py-2 text-sm text-ink-soft hover:bg-neutral-100"
             onClick={() => setIsOpen(false)}
           >
             Cancelar
           </button>
           <button
             type="button"
-            className="rounded-full bg-[#db0f0f] px-4 py-2 text-sm font-semibold text-white hover:bg-[#c20d0d]"
+            className="rounded-full bg-metalique px-4 py-2 text-sm font-semibold text-white hover:bg-metalique-strong"
             onClick={apply}
           >
             Aplicar
@@ -208,14 +212,14 @@ function DateRangeFilter({ value, onChange }: { value: DateRange; onChange: (ran
 function EmptyRows({ message, columns }: { message: string; columns: number }) {
   return (
     <tr>
-      <td className="py-8 text-center text-sm text-[#898781]" colSpan={columns}>{message}</td>
+      <td className="py-8 text-center text-sm text-ink-muted" colSpan={columns}>{message}</td>
     </tr>
   )
 }
 
 function kindButtonClass(active: boolean): string {
   return `rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-    active ? "bg-[#db0f0f] text-white" : "bg-[#f2f2f2] text-[#52514e] hover:bg-[#e7e7e7]"
+    active ? "bg-metalique text-white" : "bg-[#f2f2f2] text-ink-soft hover:bg-[#e7e7e7]"
   }`
 }
 
@@ -239,40 +243,69 @@ export function DashboardPage() {
   const [reloadEpoch, setReloadEpoch] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
+  const dataControllerRef = useRef<AbortController | null>(null)
+  const appliedRevisionRef = useRef<string | null>(null)
+  const liveRefreshPendingRef = useRef(false)
 
   useEffect(() => {
+    dataControllerRef.current?.abort()
     const controller = new AbortController()
+    dataControllerRef.current = controller
+    liveRefreshPendingRef.current = false
     const query = new URLSearchParams({
       startDate: dateRange.startDate,
       endDate: dateRange.endDate,
     }).toString()
+    const requestInit: RequestInit = { signal: controller.signal, cache: "no-store" }
 
     setIsLoading(true)
     setError("")
-    setHistoryLimit(10)
 
-    Promise.all([
-      getJson<SupervisorsResponse>("/backend/api/dashboard/supervisors.php", { signal: controller.signal }),
-      getJson<QualityDashboard>(`/backend/api/dashboard/quality.php?${query}`, { signal: controller.signal }),
-      getJson<Paginated<ReportRow>>(`/backend/api/dashboard/quality-reports.php?${query}&perPage=50`, { signal: controller.signal }),
-      getJson<Paginated<DispatchRow>>(`/backend/api/dashboard/quality-dispatches.php?${query}&perPage=50`, { signal: controller.signal }),
-    ])
-      .then(([supervisorData, dashboardData, reportData, dispatchData]) => {
+    getJson<RevisionPayload>("/backend/api/dashboard/quality-revision.php", requestInit)
+      .then((baseline) => Promise.all([
+        getJson<SupervisorsResponse>("/backend/api/dashboard/supervisors.php", requestInit),
+        getJson<QualityDashboard>(`/backend/api/dashboard/quality.php?${query}`, requestInit),
+        getJson<Paginated<ReportRow>>(`/backend/api/dashboard/quality-reports.php?${query}&perPage=50`, requestInit),
+        getJson<Paginated<DispatchRow>>(`/backend/api/dashboard/quality-dispatches.php?${query}&perPage=50`, requestInit),
+      ]).then((data) => ({ baseline, data })))
+      .then(({ baseline, data: [supervisorData, dashboardData, reportData, dispatchData] }) => {
+        if (controller.signal.aborted || dataControllerRef.current !== controller) return
         setSupervisors(supervisorData.supervisors)
         setDashboard(dashboardData)
         setReports(reportData)
         setDispatches(dispatchData)
+        appliedRevisionRef.current = baseline.revision
       })
       .catch((requestError: unknown) => {
         if (controller.signal.aborted) return
         setError(requestError instanceof Error ? requestError.message : "Não foi possível carregar o dashboard.")
       })
       .finally(() => {
-        if (!controller.signal.aborted) setIsLoading(false)
+        if (dataControllerRef.current === controller) {
+          dataControllerRef.current = null
+          setIsLoading(false)
+        }
       })
 
-    return () => controller.abort()
+    return () => {
+      controller.abort()
+      if (dataControllerRef.current === controller) dataControllerRef.current = null
+    }
   }, [dateRange.endDate, dateRange.startDate, reloadEpoch, sector])
+
+  useEffect(() => {
+    setHistoryLimit(10)
+  }, [dateRange.endDate, dateRange.startDate, sector])
+
+  useQualityLiveRefresh({
+    endpoint: "/backend/api/dashboard/quality-revision.php",
+    appliedRevisionRef,
+    onRefresh: () => {
+      if (dataControllerRef.current !== null || liveRefreshPendingRef.current) return
+      liveRefreshPendingRef.current = true
+      setReloadEpoch((current) => current + 1)
+    },
+  })
 
   useEffect(() => {
     let controller: AbortController | null = null
@@ -344,7 +377,7 @@ export function DashboardPage() {
         <div className="flex flex-wrap items-center gap-2">
           <DateRangeFilter value={dateRange} onChange={setDateRange} />
           <Select value={sector} onValueChange={(value) => setSector(value as typeof sector)}>
-            <SelectTrigger className="h-10 w-auto min-w-32 rounded-full px-4 shadow-[0_1px_2px_rgba(11,11,11,0.04)]" aria-label="Filtrar setor">
+            <SelectTrigger className="h-10 w-auto min-w-32 rounded-full px-4" aria-label="Filtrar setor">
               <SelectValue />
             </SelectTrigger>
             <SelectContent align="end">
@@ -356,7 +389,7 @@ export function DashboardPage() {
         </div>
       </div>
 
-      <div className="mt-7 flex flex-wrap items-end justify-between gap-3 border-b border-black/8 pb-4">
+      <div className="mt-7 flex flex-wrap items-end justify-between gap-3 border-b border-hairline pb-4">
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-semibold">{selectedSectorLabel}</h2>
@@ -389,11 +422,11 @@ export function DashboardPage() {
       </div>
 
       {error && (
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#db0f0f]/15 bg-[#fff5f5] px-4 py-3 text-sm text-[#9f1010]" role="alert">
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-metalique/15 bg-[#fff5f5] px-4 py-3 text-sm text-[#9f1010]" role="alert">
           <span>{error}</span>
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold shadow-sm hover:bg-[#fffafa]"
+            className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-surface px-3 py-1.5 text-xs font-semibold hover:bg-[#fffafa]"
             onClick={() => setReloadEpoch((epoch) => epoch + 1)}
           >
             <RefreshCw className="size-3.5" /> Tentar novamente
@@ -404,7 +437,7 @@ export function DashboardPage() {
       {!dashboard && isLoading ? (
         <div className="grid min-h-72 flex-1 place-items-center text-[#73716c]">
           <span className="grid justify-items-center gap-3 text-sm">
-            <LoaderCircle className="size-7 animate-spin text-[#db0f0f]" />
+            <LoaderCircle className="size-7 animate-spin text-metalique" />
             Carregando dados da Qualidade...
           </span>
         </div>
@@ -416,7 +449,7 @@ export function DashboardPage() {
               description="Apontamentos registrados mês a mês no período selecionado."
               table={{ head: ["Mês", "RAPs"], rows: dashboard.reportsByPeriod.map((row) => [row.label, row.value]) }}
             >
-              <TrendColumns data={dashboard.reportsByPeriod} measure="RAPs" />
+              <TrendColumns animationKey="dashboard:reports-period" data={dashboard.reportsByPeriod} measure="RAPs" />
             </ChartCard>
 
             <ChartCard
@@ -424,11 +457,11 @@ export function DashboardPage() {
               description="Produtos coletados mês a mês no período selecionado."
               table={{ head: ["Mês", "Coletas"], rows: dashboard.dispatchesByPeriod.map((row) => [row.label, row.value]) }}
             >
-              <TrendColumns data={dashboard.dispatchesByPeriod} measure="coletas" />
+              <TrendColumns animationKey="dashboard:dispatches-period" data={dashboard.dispatchesByPeriod} measure="coletas" />
             </ChartCard>
           </div>
 
-          <section className="rounded-2xl bg-white p-5 shadow-[0_1px_2px_rgba(11,11,11,0.06)]">
+          <section className="rounded-card border border-hairline bg-surface p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 className="text-base font-semibold">Histórico de RAPs e coletas</h2>
@@ -441,7 +474,7 @@ export function DashboardPage() {
               </div>
             </div>
 
-            <div className="mt-5 overflow-x-auto">
+            <Scroller className="mt-5 overflow-x-auto" options={HORIZONTAL_TABLE}>
               <table className="w-full min-w-[650px] border-collapse text-left text-sm">
                 <thead>
                   <tr className="text-xs text-[#73716c]">
@@ -455,27 +488,27 @@ export function DashboardPage() {
                   {historyItems.slice(0, historyLimit).map((item) => (
                     <tr key={item.id} className="border-b border-[#f1f0ec] last:border-0">
                       <td className="py-3 pr-4">
-                        <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                          item.kind === "report" ? "bg-[#db0f0f]/8 text-[#b80d0d]" : "bg-[#0b0b0b]/7 text-[#343434]"
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-[13px] font-semibold ${
+                          item.kind === "report" ? "bg-metalique/8 text-[#b80d0d]" : "bg-[#0b0b0b]/7 text-[#343434]"
                         }`}>
                           {item.kind === "report" ? "RAP" : "Coleta"}
                         </span>
                       </td>
                       <td className="py-3 pr-4 font-semibold">{item.code}</td>
-                      <td className="whitespace-nowrap py-3 pr-4 text-[#52514e]">{formatDate(item.date)}</td>
+                      <td className="whitespace-nowrap py-3 pr-4 text-ink-soft">{formatDate(item.date)}</td>
                       <td className="max-w-52 truncate py-3 pr-4" title={item.subject}>{item.subject}</td>
-                      <td className="max-w-96 truncate py-3 text-[#52514e]" title={item.detail}>{item.detail}</td>
+                      <td className="max-w-96 truncate py-3 text-ink-soft" title={item.detail}>{item.detail}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
+            </Scroller>
 
             {historyItems.length > historyLimit && (
               <div className="mt-4 flex justify-center border-t border-[#f1f0ec] pt-4">
                 <button
                   type="button"
-                  className="rounded-full border border-black/10 px-4 py-2 text-xs font-medium text-[#52514e] hover:bg-neutral-50"
+                  className="rounded-full border border-hairline px-4 py-2 text-xs font-medium text-ink-soft hover:bg-neutral-50"
                   onClick={() => setHistoryLimit((limit) => limit + 10)}
                 >
                   Mostrar mais registros

@@ -1,15 +1,28 @@
 /* ==========================================================
    BASE COMPARTILHADA
-   Cores, reset, moldura e navegação usadas por todas as páginas.
+   Reset, barra de rolagem, gradiente do painel e os poucos ajustes
+   que o Tailwind não resolve por utilitário.
    ========================================================== */
 
-/* Variáveis centrais evitam repetir cores e medidas pelo projeto. */
+/* Variáveis centrais evitam repetir cores e medidas pelo projeto.
+   As cores da interface moram em @theme (global.css), onde o Tailwind também
+   gera utilitários a partir delas; o que sobra aqui é o que só o CSS escrito à
+   mão consome - o gradiente do painel e a barra de rolagem. */
 :root {
-    --metalique-red: #DB0F0F;
-    --white: #ffffff;
-    --white-10: rgba(255, 255, 255, 0.1);
-    --text-dark: #242424;
-    --frame-radius: 24px;
+    --frame: #ffffff;
+    --decorative-arc: rgb(11 11 11 / 0.07);
+    --dialog-overlay: rgb(11 11 11 / 0.2);
+    --chart-ink-primary: #0b0b0b;
+    --chart-ink-secondary: #52514e;
+    --chart-ink-muted: #6e6c67;
+    --chart-ink-grid: #e1e0d9;
+    --chart-ink-axis: #c3c2b7;
+    --chart-surface: #ffffff;
+    --chart-cursor: rgb(11 11 11 / 0.04);
+    --header-nav-overflow-bg: rgb(245 246 248 / 0.94);
+    --header-nav-idle-bg: rgb(245 246 248 / 0);
+    --header-nav-overflow-shadow: inset 0 0 0 1px rgb(11 11 11 / 0.12), 0 6px 18px rgb(11 11 11 / 0.05);
+    --header-nav-idle-shadow: inset 0 0 0 1px rgb(11 11 11 / 0), 0 6px 18px rgb(11 11 11 / 0);
     /* O polegar visível é track - 2x inset. O recuo precisa ser maior do que o
        avanço da curva do painel na altura em que a barra começa (4,3px para o
        raio de 53px), senão o canto arredondado corta o polegar. */
@@ -17,6 +30,278 @@
     --scrollbar-inset: 7px;
     --scrollbar-thumb: rgba(11, 11, 11, 0.22);
     --scrollbar-thumb-hover: rgba(11, 11, 11, 0.38);
+}
+
+/* O tema escuro troca os mesmos tokens sem duplicar a estrutura das telas.
+   A classe é aplicada antes da montagem do React (ver lib/preferences.ts),
+   portanto a preferência salva não produz um clarão branco ao recarregar. */
+html.dark {
+    color-scheme: dark;
+    /* #2c2c2c é o piso da paleta: nenhuma superfície escura desce dele. */
+    --frame: #2c2c2c;
+    --color-frame: #2c2c2c;
+    --color-surface: #383838;
+    --color-ink: #f6f6f4;
+    --color-ink-soft: #d0d0cc;
+    --color-ink-muted: #b0afaa;
+    --color-hairline: rgb(255 255 255 / 0.16);
+    --color-hairline-strong: rgb(255 255 255 / 0.28);
+    --decorative-arc: rgb(255 255 255 / 0.08);
+    --dialog-overlay: rgb(44 44 44 / 0.78);
+    --chart-ink-primary: #f6f6f4;
+    --chart-ink-secondary: #d0d0cc;
+    --chart-ink-muted: #b0afaa;
+    --chart-ink-grid: #505050;
+    --chart-ink-axis: #858585;
+    --chart-surface: #383838;
+    --chart-cursor: rgb(255 255 255 / 0.07);
+    --header-nav-overflow-bg: rgb(65 65 65 / 0.96);
+    --header-nav-idle-bg: rgb(65 65 65 / 0);
+    --header-nav-overflow-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14), 0 6px 18px rgb(44 44 44 / 0.72);
+    --header-nav-idle-shadow: inset 0 0 0 1px rgb(255 255 255 / 0), 0 6px 18px rgb(44 44 44 / 0);
+    --scrollbar-thumb: rgb(255 255 255 / 0.22);
+    --scrollbar-thumb-hover: rgb(255 255 255 / 0.38);
+
+    /* As classes neutras do Tailwind aparecem em estados, abas e hovers. */
+    --color-neutral-50: #363636;
+    --color-neutral-100: #414141;
+    --color-neutral-200: #4d4d4d;
+    --color-neutral-500: #b0afaa;
+    --color-neutral-600: #d0d0cc;
+}
+
+html.dark body {
+    background: var(--frame);
+}
+
+/* "Reduzir animações" nas configurações. Só transições, de propósito: as
+   animações de verdade que sobraram ou são funcionais (o `animate-spin` dos
+   carregadores diz que algo está acontecendo) ou são movidas pela rolagem
+   (`scroll-fade` roda em `animation-timeline: scroll()`, e encurtar a duração
+   dela apagaria a máscara em vez de acalmá-la). O que o motion anima passa pelo
+   `MotionConfig reducedMotion="always"` no App. */
+html.reduce-motion,
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+}
+
+/* Alguns componentes antigos ainda dizem `bg-white`/`text-black` diretamente.
+   Estes aliases os fazem acompanhar o tema enquanto migram para os tokens. */
+html.dark :where(.bg-white) {
+    background-color: var(--color-surface);
+}
+
+html.dark :where(.bg-black),
+html.dark [class~="hover:bg-black"]:hover {
+    background-color: #2c2c2c;
+}
+
+html.dark :where(.bg-neutral-900) {
+    background-color: #2c2c2c;
+}
+
+html.dark [class~="bg-black/45"] {
+    background-color: rgb(44 44 44 / 0.78);
+}
+
+html.dark [class~="bg-black/70"] {
+    background-color: rgb(44 44 44 / 0.9);
+}
+
+html.dark [class~="hover:bg-black/5"]:hover {
+    background-color: rgb(255 255 255 / 0.08);
+}
+
+html.dark :where(.text-black) {
+    color: var(--color-ink);
+}
+
+html.dark [class~="hover:text-black"]:hover {
+    color: var(--color-ink);
+}
+
+html.dark [class~="border-black/5"] {
+    border-color: var(--color-hairline);
+}
+
+html.dark :where(.shadow-sm, .shadow-lg, .shadow-xl, .shadow-2xl) {
+    --tw-shadow-color: rgb(44 44 44 / 0.72);
+}
+
+html.dark [data-slot="popover-content"] {
+    box-shadow: 0 20px 60px rgb(44 44 44 / 0.72);
+}
+
+html.dark [data-slot="dialog-content"] {
+    box-shadow: 0 24px 80px rgb(44 44 44 / 0.72);
+}
+
+/* Vermelho de superfície permanece o da marca; quando ele é texto precisa de
+   um passo mais claro para conservar contraste sobre os cartões escuros. */
+html.dark :where(.text-metalique) {
+    color: #ff8d8d;
+}
+
+html.dark [class~="hover:text-metalique"]:hover {
+    color: #ff8d8d;
+}
+
+html.dark [class~="placeholder:text-black/50"]::placeholder {
+    color: color-mix(in srgb, var(--color-ink) 50%, transparent);
+}
+
+html.dark [class~="bg-[#f7f7f6]"],
+html.dark [class~="bg-[#fafafa]"],
+html.dark [class~="bg-[#f5f5f4]"],
+html.dark [class~="bg-[#f2f2f2]"],
+html.dark [class~="bg-[#e6e6ea]"] {
+    background-color: var(--color-neutral-100);
+}
+
+html.dark [class~="hover:bg-[#fafafa]"]:hover {
+    background-color: var(--color-neutral-100);
+}
+
+html.dark [class~="hover:bg-[#e8e8e8]"]:hover,
+html.dark [class~="hover:bg-[#e7e7e7]"]:hover {
+    background-color: var(--color-neutral-200);
+}
+
+html.dark [class~="bg-[#fff5f5]"] {
+    background-color: rgb(219 15 15 / 0.12);
+}
+
+html.dark [class~="text-[#9f1010]"] {
+    color: #ff9b9b;
+}
+
+html.dark [class~="hover:bg-[#fffafa]"]:hover {
+    background-color: rgb(219 15 15 / 0.08);
+}
+
+html.dark [class~="border-[#f0efec]"] {
+    border-color: var(--color-hairline);
+}
+
+html.dark [class~="border-[#e8e7e2]"],
+html.dark [class~="border-[#f1f0ec]"],
+html.dark [class~="border-[#e1e0d9]"] {
+    border-color: var(--color-hairline);
+}
+
+html.dark [class~="text-[#73716c]"] {
+    color: var(--color-ink-muted);
+}
+
+html.dark [class~="text-[#343434]"] {
+    color: var(--color-ink-soft);
+}
+
+html.dark [class~="bg-[#0b0b0b]/7"] {
+    background-color: rgb(255 255 255 / 0.09);
+}
+
+html.dark [class~="text-[#16803a]"] {
+    color: #78df9b;
+}
+
+html.dark [class~="text-[#b7791f]"] {
+    color: #f4c663;
+}
+
+html.dark [class~="text-[#9f1010]"],
+html.dark [class~="text-[#a50b0b]"],
+html.dark [class~="text-[#b00c0c]"],
+html.dark [class~="text-[#b70d0d]"],
+html.dark [class~="text-[#b80d0d]"] {
+    color: #ff8b8b;
+}
+
+/* Avisos e estados precisam de superfícies profundas no escuro; manter os
+   tons 50 do Tailwind produziria ilhas quase brancas no meio da interface. */
+html.dark :where(.bg-red-50),
+html.dark [class~="bg-red-50/60"],
+html.dark [class~="hover:bg-red-50"]:hover {
+    background-color: #493234;
+}
+
+html.dark :where(.border-red-200) {
+    border-color: #6b2b31;
+}
+
+html.dark :where(.text-red-600, .text-red-700, .text-red-800) {
+    color: #ff8b8b;
+}
+
+html.dark :where(.bg-green-50) {
+    background-color: #304238;
+}
+
+html.dark :where(.border-green-200) {
+    border-color: #2a5b3b;
+}
+
+html.dark :where(.text-green-700, .text-green-800) {
+    color: #78df9b;
+}
+
+html.dark :where(.bg-emerald-50) {
+    background-color: #30463e;
+}
+
+html.dark :where(.border-emerald-200) {
+    border-color: #275e4e;
+}
+
+html.dark :where(.text-emerald-700, .text-emerald-800) {
+    color: #6ee7b7;
+}
+
+html.dark :where(.bg-amber-50) {
+    background-color: #443e30;
+}
+
+html.dark :where(.border-amber-200) {
+    border-color: #684f22;
+}
+
+html.dark :where(.text-amber-700, .text-amber-800, .text-amber-900) {
+    color: #f4c663;
+}
+
+/* A prévia e o papel continuam claros independentemente do tema da interface. */
+html.dark :is(.quality-print-sheet, .quality-print-signatures, .quality-chart-print, .quality-print-measure) {
+    color-scheme: light;
+    color: #0b0b0b;
+    --color-surface: #ffffff;
+    --color-ink: #0b0b0b;
+    --color-ink-soft: #52514e;
+    --color-ink-muted: #6e6c67;
+    --color-hairline: rgb(11 11 11 / 0.18);
+    --color-hairline-strong: rgb(11 11 11 / 0.28);
+    --chart-ink-primary: #0b0b0b;
+    --chart-ink-secondary: #52514e;
+    --chart-ink-muted: #6e6c67;
+    --chart-ink-grid: #e1e0d9;
+    --chart-ink-axis: #c3c2b7;
+    --chart-surface: #ffffff;
+    --chart-cursor: rgb(11 11 11 / 0.04);
+}
+
+/* Dois roxos da paleta validada no branco precisam de um passo de luminosidade
+   sobre a superfície escura. O escopo no root preserva as cores do PDF. */
+html.dark #root [fill="#4a3aa7"],
+html.dark .quality-chart-fullscreen [fill="#4a3aa7"] {
+    fill: #7662c5;
+}
+
+html.dark #root [fill="#7c3aa7"],
+html.dark .quality-chart-fullscreen [fill="#7c3aa7"] {
+    fill: #9855b8;
 }
 
 /* ==========================================================
@@ -67,6 +352,87 @@
 }
 
 /* ==========================================================
+   DISSOLVÊNCIA DAS PONTAS DA ROLAGEM
+   ==========================================================
+   Onde o conteúdo entra e sai da área rolável ele não termina em corte seco:
+   dissolve. A máscara mora no próprio scroller, e não no conteúdo, porque
+   precisa ficar parada enquanto o conteúdo passa por baixo dela.
+
+   As duas medidas valem zero quando a ponta está encostada no limite e crescem
+   até `--scroll-fade-size` conforme se rola para longe dele. Quem escreve isso
+   é a linha do tempo de rolagem do próprio elemento, sem JavaScript: assim o
+   primeiro e o último item nunca aparecem apagados, e a dissolvência nasce
+   junto com o primeiro pixel de rolagem, sem estalo.
+
+   O `@supports` é a rede. Onde não houver linha do tempo de rolagem, as duas
+   medidas ficam em 0px, a máscara vira um retângulo opaco e a tela volta ao
+   corte de antes - o que não pode acontecer é conteúdo apagado sem motivo.
+
+   Dois efeitos colaterais, ambos conhecidos: a máscara também alcança o polegar
+   da barra e o descolore nas pontas; e ela recorta descendentes
+   `position: fixed`, então nenhum sobreposto de tela cheia pode nascer dentro
+   de um scroller com fade - ele precisa sair por portal. */
+@property --scroll-fade-top {
+    syntax: "<length>";
+    inherits: false;
+    initial-value: 0px;
+}
+
+@property --scroll-fade-bottom {
+    syntax: "<length>";
+    inherits: false;
+    initial-value: 0px;
+}
+
+@keyframes scroll-fade-in-top {
+    from { --scroll-fade-top: 0px; }
+    to { --scroll-fade-top: var(--scroll-fade-size); }
+}
+
+@keyframes scroll-fade-out-bottom {
+    from { --scroll-fade-bottom: var(--scroll-fade-size); }
+    to { --scroll-fade-bottom: 0px; }
+}
+
+.scroll-fade,
+.scroll-fade-bottom {
+    --scroll-fade-size: 2rem;
+    mask-image: linear-gradient(
+        to bottom,
+        rgb(0 0 0 / 0) 0,
+        #000 var(--scroll-fade-top),
+        #000 calc(100% - var(--scroll-fade-bottom)),
+        rgb(0 0 0 / 0) 100%
+    );
+}
+
+/* Nada de atalho `animation` aqui: sem duração escrita, o minificador assume o
+   valor antigo da propriedade (`0s`) e a animação passa a saltar direto para o
+   fim - o fade de cima nasceria aceso já com a rolagem no zero. `auto` é o que
+   manda a animação durar exatamente a faixa declarada em `animation-range`. */
+@supports (animation-timeline: scroll()) {
+    .scroll-fade {
+        animation-name: scroll-fade-in-top, scroll-fade-out-bottom;
+        animation-duration: auto, auto;
+        animation-timing-function: linear, linear;
+        animation-fill-mode: both, both;
+        animation-timeline: scroll(self block), scroll(self block);
+        animation-range: 0px var(--scroll-fade-size), calc(100% - var(--scroll-fade-size)) 100%;
+    }
+
+    /* Só a ponta de baixo. Em tabela com cabeçalho grudado no topo, a
+       dissolvência de cima apagaria justamente o cabeçalho. */
+    .scroll-fade-bottom {
+        animation-name: scroll-fade-out-bottom;
+        animation-duration: auto;
+        animation-timing-function: linear;
+        animation-fill-mode: both;
+        animation-timeline: scroll(self block);
+        animation-range: calc(100% - var(--scroll-fade-size)) 100%;
+    }
+}
+
+/* ==========================================================
    MENUS SUSPENSOS
    Abertura dos componentes shadcn. Escrita à mão porque o projeto
    não usa o plugin de animação do Tailwind.
@@ -78,16 +444,66 @@
     }
 }
 
+@keyframes ui-dialog-overlay-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes ui-dialog-overlay-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+@keyframes ui-dialog-content-in {
+    from {
+        opacity: 0;
+        scale: 0.985;
+    }
+    to {
+        opacity: 1;
+        scale: 1;
+    }
+}
+
+@keyframes ui-dialog-content-out {
+    from {
+        opacity: 1;
+        scale: 1;
+    }
+    to {
+        opacity: 0;
+        scale: 0.99;
+    }
+}
+
 [data-slot="select-content"][data-state="open"],
 [data-slot="popover-content"][data-state="open"] {
     animation: ui-pop-in 120ms ease-out;
     transform-origin: var(--radix-select-content-transform-origin, var(--radix-popover-content-transform-origin));
 }
 
-/* Quem pede menos movimento recebe o menu já aberto, sem escala. */
+[data-slot="dialog-overlay"][data-state="open"] {
+    animation: ui-dialog-overlay-in 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+[data-slot="dialog-overlay"][data-state="closed"] {
+    animation: ui-dialog-overlay-out 160ms ease-in;
+}
+
+[data-slot="dialog-content"][data-state="open"] {
+    animation: ui-dialog-content-in 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+[data-slot="dialog-content"][data-state="closed"] {
+    animation: ui-dialog-content-out 160ms ease-in;
+}
+
+/* Quem pede menos movimento recebe o componente já aberto. */
 @media (prefers-reduced-motion: reduce) {
     [data-slot="select-content"][data-state="open"],
-    [data-slot="popover-content"][data-state="open"] {
+    [data-slot="popover-content"][data-state="open"],
+    [data-slot="dialog-overlay"],
+    [data-slot="dialog-content"] {
         animation: none;
     }
 }
@@ -101,12 +517,14 @@ html {
     min-height: 100%;
 }
 
-/* A página ocupa toda a área disponível do navegador. */
+/* A página ocupa toda a área disponível do navegador. O fundo é o mesmo branco
+   da moldura: é ele que aparece no overscroll, e um vermelho aqui faria a borda
+   da tela piscar de vermelho ao puxar a rolagem além do fim. */
 body {
     min-height: 100vh;
     margin: 0;
-    color: var(--text-dark);
-    background: var(--metalique-red);
+    color: var(--color-ink);
+    background: var(--frame);
     font-family: var(--font-sans);
 }
 
@@ -119,89 +537,157 @@ body {
     }
 }
 
-/* Moldura principal vermelha presente nas três páginas. */
-.page-frame {
-    width: 100%;
-    height: 100vh;
-    min-height: 560px;
-    padding: 18px;
-    display: grid;
-    overflow: hidden;
-    background: var(--metalique-red);
+/* ==========================================================
+   SUPERFÍCIE DE CONTEÚDO
+   ==========================================================
+   Três camadas, de cima para baixo: o halo da marca, um clarão branco no
+   canto oposto e a diagonal que dá o corpo do gradiente.
+
+   O halo fica em 6% de propósito. Acima disso ele deixa de ser fundo e passa
+   a competir com os botões vermelhos, que são o sotaque da tela - quando o
+   contraste apertar, o ajuste é aqui, nunca no botão.
+
+   E a diagonal precisa terminar em #eceef3, não em branco: é esse tom que dá
+   contraste para o card branco flutuar sobre o painel. Um gradiente
+   branco-para-branco apagaria todos os cards de uma vez. */
+.surface-gradient {
+    background:
+        radial-gradient(120% 90% at 88% 6%, rgb(219 15 15 / 0.06), transparent 62%),
+        radial-gradient(90% 70% at 8% 0%, #fff, transparent 55%),
+        linear-gradient(158deg, #fff 0%, #f5f6f8 46%, #eceef3 100%);
+}
+
+html.dark .surface-gradient {
+    background:
+        radial-gradient(120% 90% at 88% 6%, rgb(219 15 15 / 0.1), transparent 62%),
+        linear-gradient(to bottom right, #383838 0%, #323232 52%, #2c2c2c 100%);
+}
+
+/* Superfície exclusiva da Home. É o mesmo desenho branco → cinza da superfície
+   neutra, mas o trecho que antes terminava em cinza agora encontra o vermelho
+   Metalique. A área branca continua preservada para manter o acabamento clean. */
+.surface-gradient-metalique {
+    background:
+        radial-gradient(120% 90% at 88% 6%, rgb(219 15 15 / 0.08), transparent 62%),
+        radial-gradient(90% 70% at 8% 0%, #fff, transparent 55%),
+        linear-gradient(158deg, #fff 0%, #f8eeee 46%, #db0f0f 100%);
+    /* O hairline é translúcido. Sem este recorte, o vermelho é pintado atrás
+       dele e aparece como uma linha colorida nas bordas do painel. */
+    background-clip: padding-box;
+}
+
+html.dark .surface-gradient-metalique {
+    background:
+        radial-gradient(100% 80% at 88% 8%, rgb(219 15 15 / 0.14), transparent 58%),
+        linear-gradient(to bottom right, #383838 0%, #353131 52%, #2c2c2c 100%);
+    background-clip: padding-box;
 }
 
 /* ==========================================================
-   NAVEGAÇÃO COMPARTILHADA
-   ========================================================== */
-.top-navigation {
-    position: absolute;
-    z-index: 5;
-    top: clamp(22px, 3.2vh, 40px);
-    left: clamp(24px, 2.8vw, 54px);
-    display: flex;
-    align-items: center;
-    gap: 38px;
+   FOTOGRAFIA DE FUNDO DO PAINEL (telas públicas)
+   ==========================================================
+   Duas correções que a imagem exige e que utilitário não resolve bem.
+
+   O grayscale não é estilo, é necessidade: a máquina foi fotografada sob luz
+   vermelha, e mesmo a 12% de opacidade ela tingia o painel inteiro de rosa -
+   o gradiente neutro desaparecia e a tela passava a ler como "vermelho
+   diluído", que é justamente o caminho de cor que não escolhemos. Sem cor, a
+   mesma imagem vira só textura.
+
+   A máscara mantém a foto na metade direita, junto dos arcos, e a dissolve
+   antes de chegar ao hero. Assim o texto grande escreve sobre gradiente limpo
+   e não sobre uma mancha de luminosidade imprevisível. */
+.panel-photo {
+    filter: grayscale(1) blur(clamp(10px, 1vw, 18px));
+    opacity: 0.16;
+    mask-image: linear-gradient(to right, transparent 18%, #000 62%);
 }
 
-.brand-link img {
-    width: clamp(32px, 2.5vw, 48px);
-    height: auto;
-    display: block;
-}
-
-.navigation-links {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.navigation-links a {
-    padding: 3px 11px;
-    border: 1px solid rgba(255, 255, 255, 0.65);
-    border-radius: 999px;
-    color: var(--white);
-    font-size: clamp(12px, 0.9vw, 18px);
-    line-height: 1;
-    transition: color 160ms ease, background-color 160ms ease;
-}
-
-/* Destaca a página ativa e também responde ao mouse e ao teclado. */
-.navigation-links a:hover,
-.navigation-links a:focus-visible,
-.navigation-links .active {
-    color: var(--metalique-red);
-    background: var(--white);
-}
-
-/* ==========================================================
-   RESPONSIVIDADE COMPARTILHADA
-   ========================================================== */
 @media (max-width: 820px) {
-    .page-frame {
-        height: auto;
-        min-height: 100vh;
-        grid-template-columns: 1fr;
+    /* Em coluna estreita o hero ocupa a largura toda e não há "metade direita"
+       livre: a foto recua para o topo e sai de baixo do texto. */
+    .panel-photo {
+        opacity: 0.16;
+        mask-image: linear-gradient(to bottom, #000 0%, transparent 46%);
     }
 }
 
-@media (max-width: 520px) {
-    .page-frame {
-        min-height: 100vh;
-        padding: 10px;
+/* ==========================================================
+   CABEÇALHO DO SISTEMA
+   ========================================================== */
+/* Uma única medida governa menu, logo e controles dos dois cabeçalhos. Assim
+   todos crescem juntos nos breakpoints, sem pequenas diferenças acumuladas. */
+.header-sizing {
+    --header-control-size: 2rem;
+}
+
+.public-header-actions > :is(a, button) {
+    height: var(--header-control-size);
+}
+
+@media (min-width: 640px) {
+    .header-sizing {
+        --header-control-size: 2.25rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .header-sizing {
+        --header-control-size: 2.5rem;
+    }
+}
+
+/* As duas laterais recebem o mesmo mínimo — a maior entre o logo e o bloco
+   da direita, medida em JS e publicada em --header-side. Com as colunas 1fr
+   iguais o menu do meio cai no centro exato do cabeçalho, em qualquer
+   largura, e quem cede espaço é sempre ele (mínimo zero, rola por dentro).
+   O min() é o freio: sem ele, laterais maiores que metade do cabeçalho
+   empurrariam a grade para fora e a página ganharia rolagem horizontal.
+   O 2rem do calc são os dois gap-4 entre as três colunas. */
+@media (min-width: 1024px) {
+    .app-header {
+        grid-template-columns:
+            minmax(min(var(--header-side, 0px), calc((100% - 2rem) / 2)), 1fr)
+            minmax(0, auto)
+            minmax(min(var(--header-side, 0px), calc((100% - 2rem) / 2)), 1fr);
+    }
+}
+
+/* Abaixo de 500px a coluna do meio deixa de existir na prática: o logo (83px) e
+   o bloco da direita (136px fechado) já tomam o cabeçalho quase inteiro, e o
+   menu fica com poucas dezenas de pixels - um trilho de rolagem cego, sem
+   nenhuma pílula legível de uma vez. Nessa faixa ele desce para uma segunda
+   linha e vale a largura toda; as pílulas são as mesmas e seguem rolando por
+   dentro quando não cabem. Logo e controles permanecem em cima, e a coluna 1fr,
+   agora vazia, vira só o vão entre os dois.
+
+   A regra pega os dois cabeçalhos (sistema e público) porque os dois precisam
+   descer na mesma largura: eles compartilham o `layoutId` do motion e se
+   transformam um no outro ao entrar no sistema - se só um descesse, a transição
+   daria um salto vertical aqui.
+
+   Ela vence o `col-start-2 row-start-1 justify-self-center` escrito no JSX
+   porque este arquivo é importado sem camada e os utilitários do Tailwind moram
+   em @layer utilities. É o mesmo mecanismo de que a regra do .app-header acima
+   já depende para sobrescrever o `grid-cols-[...]`. */
+@media (max-width: 500px) {
+    .header-stack {
+        row-gap: 0.75rem;
     }
 
-    .top-navigation {
-        top: 22px;
-        left: 20px;
-        gap: 20px;
+    .header-stack > .nav-scroller {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        justify-self: stretch;
     }
+}
 
-    .navigation-links {
-        gap: 4px;
-    }
+/* A barra global tem 20px de altura e não cabe na pílula de 46px. Some daqui:
+   a rolagem fica no gesto (roda, trackpad) e no deslize até a aba ativa. */
+.nav-scroller {
+    scrollbar-width: none;
+}
 
-    .navigation-links a {
-        padding: 4px 8px;
-        font-size: 12px;
-    }
+.nav-scroller::-webkit-scrollbar {
+    display: none;
 }

@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\UserPreferences;
 use App\Support\UserPresence;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
@@ -44,8 +45,7 @@ final class GeneralController extends Controller
             $total = User::query()->where('is_active', true)->count();
             $users = User::query()
                 ->where('is_active', true)
-                ->latest('created_at')
-                ->latest('id')
+                ->inRandomOrder()
                 ->limit(3)
                 ->get(['id', 'name', 'profile_photo'])
                 ->map(static fn (User $user): array => [
@@ -139,8 +139,14 @@ final class GeneralController extends Controller
         $user = $request->user();
         $items = [];
 
+        // O silêncio é aplicado aqui, e não no navegador: o contador do sino
+        // conta o que veio, então filtrar do lado de lá deixaria a bolinha
+        // anunciando notificações que a pessoa mandou calar.
+        $muted = UserPreferences::forUser((int) $user->getKey())['mutedNotifications'];
+        $wants = static fn (string $kind): bool => ! in_array($kind, $muted, true);
+
         try {
-            if ($user->role === 'admin') {
+            if ($user->role === 'admin' && $wants('password-reset')) {
                 $resets = DB::table('password_reset_requests as request')
                     ->join('users as account', 'account.id', '=', 'request.user_id')
                     ->where('request.status', 'pending')->orderByDesc('request.created_at')->limit(6)
@@ -155,7 +161,9 @@ final class GeneralController extends Controller
                         'requestId' => (int) $reset->id,
                     ];
                 }
+            }
 
+            if ($user->role === 'admin' && $wants('access-request')) {
                 $accessRequests = DB::table('access_requests')->where('status', 'pending')
                     ->orderByDesc('created_at')->limit(6)->get();
                 foreach ($accessRequests as $access) {
@@ -171,12 +179,12 @@ final class GeneralController extends Controller
                             $admission
                         ),
                         'createdAt' => CarbonImmutable::parse($access->created_at)->toAtomString(),
-                        'route' => '/usuarios', 'tab' => null,
+                        'route' => '/usuarios', 'tab' => null, 'kind' => 'access-request',
                     ];
                 }
             }
 
-            if ($user->hasPermission('quality.view')) {
+            if ($user->hasPermission('quality.view') && $wants('quality')) {
                 $reports = DB::select(
                     "SELECT CONCAT('report-', report.id) AS id,
                             CONCAT('Novo ', report.code) AS title,
@@ -200,7 +208,7 @@ final class GeneralController extends Controller
                         'title' => (string) $report->title,
                         'description' => (string) $report->description,
                         'createdAt' => CarbonImmutable::parse($report->created_at)->toAtomString(),
-                        'route' => '/qualidade', 'tab' => 'registros',
+                        'route' => '/qualidade', 'tab' => 'registros', 'kind' => 'quality',
                     ];
                 }
             }

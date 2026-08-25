@@ -28,7 +28,7 @@ function Field({ label, value, placeholder, options, onChange }: {
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-1">
-      <span className="text-[11px] font-medium uppercase tracking-wide text-[#898781]">{label}</span>
+      <span className="text-[13px] font-medium uppercase tracking-wide text-ink-muted">{label}</span>
       <Select
         value={value ?? TODOS}
         onValueChange={(escolhido) => onChange(escolhido === TODOS ? null : escolhido)}
@@ -51,9 +51,10 @@ type ActiveFilter = { key: keyof QualityFilters; label: string; clear: Partial<Q
 
 /**
  * Os filtros preenchidos em texto legível. Com os campos escondidos dentro do
- * menu, é essa lista que mostra o recorte em vigor sem precisar abri-lo.
+ * menu, é essa lista que mostra o recorte em vigor sem precisar abri-lo - e é a
+ * mesma lista que a folha impressa de um gráfico escreve no cabeçalho.
  */
-function activeFilters(filters: QualityFilters, options: QualityOptions | null): ActiveFilter[] {
+export function activeFilters(filters: QualityFilters, options: QualityOptions | null): ActiveFilter[] {
   const named = (list: { id: number; name: string }[] | undefined, id: number) =>
     list?.find((item) => Number(item.id) === id)?.name ?? String(id)
 
@@ -128,8 +129,8 @@ export function FilterBar({ filters, options, onChange, onReset }: {
             type="button"
             className={`flex h-9 shrink-0 items-center gap-2 rounded-full border px-4 text-sm transition-colors ${
               isFiltered
-                ? "border-[#db0f0f] bg-[#db0f0f] text-white hover:bg-[#c20d0d]"
-                : "border-black/10 bg-white text-[#52514e] hover:bg-neutral-50"
+                ? "border-metalique bg-metalique text-white hover:bg-metalique-strong"
+                : "border-hairline bg-white text-ink-soft hover:bg-neutral-50"
             }`}
           >
             <SlidersHorizontal className="size-4" />
@@ -183,7 +184,7 @@ export function FilterBar({ filters, options, onChange, onReset }: {
               label="Gate"
               placeholder="Todos"
               value={filters.gate}
-              options={(options?.gates ?? []).map((gate) => ({ value: gate, label: gate }))}
+              options={(options?.gates ?? []).map((gate) => ({ value: gate.name, label: gate.name }))}
               onChange={(gate) => set({ gate })}
             />
 
@@ -235,7 +236,7 @@ export function FilterBar({ filters, options, onChange, onReset }: {
           <div className="mt-4 flex items-center justify-between border-t border-[#f0efec] pt-3">
             <button
               type="button"
-              className="flex items-center gap-1.5 text-sm text-[#52514e] transition-colors hover:text-[#0b0b0b] disabled:opacity-40"
+              className="flex items-center gap-1.5 text-sm text-ink-soft transition-colors hover:text-ink disabled:opacity-40"
               onClick={onReset}
               disabled={!isFiltered}
             >
@@ -243,7 +244,7 @@ export function FilterBar({ filters, options, onChange, onReset }: {
             </button>
             <button
               type="button"
-              className="rounded-full bg-[#db0f0f] px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-[#c20d0d]"
+              className="rounded-full bg-metalique px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-metalique-strong"
               onClick={() => setIsOpen(false)}
             >
               Fechar
@@ -256,7 +257,7 @@ export function FilterBar({ filters, options, onChange, onReset }: {
         <button
           key={filter.key}
           type="button"
-          className="flex h-9 items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 text-sm text-[#52514e] transition-colors hover:border-black/20 hover:text-[#0b0b0b]"
+          className="flex h-9 items-center gap-1.5 rounded-full border border-hairline bg-white px-3 text-sm text-ink-soft transition-colors hover:border-hairline-strong hover:text-ink"
           aria-label={`Remover filtro ${filter.label}`}
           onClick={() => set(filter.clear)}
         >

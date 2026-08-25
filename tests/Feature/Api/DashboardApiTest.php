@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Api;
 
 use App\Models\User;
+use App\Support\QualityRevision;
 use App\Support\UserPresence;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -82,6 +83,27 @@ final class DashboardApiTest extends TestCase
     {
         $this->actingAs(User::factory()->create())
             ->getJson('/backend/api/dashboard/supervisors.php')
+            ->assertForbidden();
+    }
+
+    public function test_dashboard_observa_a_mesma_revisao_sem_ganhar_acesso_a_qualidade(): void
+    {
+        $viewer = User::factory()->create();
+        DB::table('user_permissions')->insert([
+            'user_id' => $viewer->id,
+            'permission' => 'dashboard.view',
+        ]);
+        QualityRevision::bump();
+
+        $this->actingAs($viewer)
+            ->getJson('/backend/api/dashboard/quality-revision.php')
+            ->assertOk()
+            ->assertJsonPath('revision', '1');
+
+        $this->getJson('/backend/api/quality/revision.php')->assertForbidden();
+
+        $this->actingAs(User::factory()->create())
+            ->getJson('/backend/api/dashboard/quality-revision.php')
             ->assertForbidden();
     }
 }

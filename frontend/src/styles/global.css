@@ -2,16 +2,92 @@
    download e ainda bloquearia a renderização até o CSS externo chegar. */
 @import "tailwindcss";
 @import "./base.css";
-@import "./home.css";
-@import "./auth.css";
-@import "./access-request.css";
 @import "./quality.css";
 
 @theme {
   /* Fonte única do projeto. O sans-serif final é só a rede de segurança do
      navegador caso a Inter não carregue - nenhuma outra família é escolhida. */
   --font-sans: "Inter", sans-serif;
+
+  /* ----------------------------------------------------------
+     ESCALA TIPOGRÁFICA
+     A escala do projeto fica um degrau acima da do Tailwind: cada nome
+     assume o par tamanho/entrelinha do degrau seguinte. Os 12px do
+     text-xs padrão eram o piso de leitura da interface inteira - rótulo
+     de filtro, descrição de permissão, data de notificação - e ficavam
+     pequenos demais na tela.
+
+     Redefinir aqui, em vez de trocar as 243 classes espalhadas, mantém a
+     hierarquia intacta (nada se achata) e deixa a mudança reversível em
+     um lugar só. O preço é que text-xs agora vale 14px, e não 12px: esta
+     é a escala da Metalique, não a do Tailwind.
+
+     A entrelinha vem junto de propósito: sozinho, o tamanho novo herdaria
+     a entrelinha calculada para o tamanho antigo e o texto ficaria maior
+     dentro da mesma caixa apertada.
+
+     text-4xl para cima seguem no padrão e não são usados - acima de 36px
+     o projeto escreve clamp() direto na classe, como na Home e no
+     Dashboard.
+     ---------------------------------------------------------- */
+  --text-xs: 0.875rem;
+  --text-xs--line-height: calc(1.25 / 0.875);
+  --text-sm: 1rem;
+  --text-sm--line-height: calc(1.5 / 1);
+  --text-base: 1.125rem;
+  --text-base--line-height: calc(1.75 / 1.125);
+  --text-lg: 1.25rem;
+  --text-lg--line-height: calc(1.75 / 1.25);
+  --text-xl: 1.5rem;
+  --text-xl--line-height: calc(2 / 1.5);
+  --text-2xl: 1.875rem;
+  --text-2xl--line-height: calc(2.25 / 1.875);
+  --text-3xl: 2.25rem;
+  --text-3xl--line-height: calc(2.5 / 2.25);
+
+  /* ----------------------------------------------------------
+     TOKENS DA INTERFACE
+     O Tailwind v4 gera um utilitário por entrada daqui: --color-ink-soft
+     vira text-ink-soft, --radius-card vira rounded-card. É esta camada que
+     substitui os literais #db0f0f espalhados pelo projeto.
+     ---------------------------------------------------------- */
+
+  /* Marca. Vermelho é sotaque - botão, pílula ativa, alerta, foco - e não
+     superfície: nenhuma moldura ou painel volta a ser pintado com ele. */
   --color-metalique: #db0f0f;
+  --color-metalique-strong: #c20d0d;
+
+  /* Tinta. Os mesmos valores de INK em charts/tokens.ts, para que gráfico e
+     interface escrevam com a mesma escala de cinza.
+
+     O muted é #6e6c67 e não o #898781 de antes porque ele carrega texto que
+     precisa ser lido - rótulo de indicador, "Nenhum RAP no filtro atual", cargo
+     no cabeçalho. O #898781 dava 3,59:1 sobre o cartão branco e 3,09:1 sobre o
+     gradiente, abaixo dos 4,5:1 que a WCAG pede para texto pequeno; o #6e6c67
+     dá 5,24:1 e 4,52:1. É o tom mais claro que passa nos dois fundos mantendo a
+     matiz quente da escala - e já era usado solto pelo projeto, então a troca
+     também junta quatro cinzas em três. */
+  --color-ink: #0b0b0b;
+  --color-ink-soft: #52514e;
+  --color-ink-muted: #6e6c67;
+
+  /* Superfícies e linhas. Card e moldura são ambos brancos, então o hairline
+     é o que separa um do outro: sem ele o card some dentro do painel.
+
+     O alpha 0,18 não é gosto, é medida. A borda é pintada sobre o branco do
+     próprio card, então ela clareia junto com o alpha - e o painel escurece ao
+     descer o gradiente. Com 0,08 as duas se encontravam: contra a ponta escura
+     (#eceef3) a linha dava 1,03:1, e a certa altura do gradiente ela cruzava a
+     cor do painel e sumia por completo. Em 0,18 a linha vira #d3d3d3, fica
+     abaixo do painel em toda a extensão do gradiente (1,29:1 no pior ponto) e
+     dá 1,50:1 sobre o card - o mesmo peso do border-gray-300 do Tailwind. */
+  --color-surface: #ffffff;
+  --color-frame: #ffffff;
+  --color-hairline: rgb(11 11 11 / 0.18);
+  --color-hairline-strong: rgb(11 11 11 / 0.28);
+
+  --radius-panel: 12px;
+  --radius-card: 16px;
 }
 
 * {

@@ -380,6 +380,11 @@ def build(path: Path) -> tuple[list[str], dict[str, int]]:
         " local_treatment, resolution",
         startup_rows,
     )
+    statements.append(
+        "\nINSERT INTO data_revisions (scope, revision, updated_at) "
+        "VALUES ('quality', 1, CURRENT_TIMESTAMP) "
+        "ON DUPLICATE KEY UPDATE revision = revision + 1, updated_at = CURRENT_TIMESTAMP;"
+    )
 
     return statements, counts
 

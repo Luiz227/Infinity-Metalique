@@ -61,7 +61,7 @@ final class UserController extends Controller
         $submitted = is_array($request->input('permissions')) ? $request->input('permissions') : [];
         $permissions = array_values(array_unique(array_intersect(
             array_map('strval', $submitted),
-            Permissions::keys()
+            Permissions::assignableKeys()
         )));
 
         if (strlen($name) < 3 || strlen($name) > 120) {
@@ -92,10 +92,11 @@ final class UserController extends Controller
         }
 
         if ($role === 'admin') {
-            $permissions = Permissions::keys();
+            $permissions = Permissions::assignableKeys();
         } else {
             $quality = [
-                'quality.manage', 'quality.create_rap', 'quality.create_dispatch', 'quality.import',
+                'quality.manage', 'quality.create_rap', 'quality.create_dispatch',
+                'quality.create_complaint', 'quality.import',
                 'quality.raps', 'quality.units', 'quality.products', 'quality.dispatches',
                 'quality.employees', 'quality.satisfaction', 'quality.records',
             ];
@@ -216,7 +217,13 @@ final class UserController extends Controller
                     return ['error' => 'Você não pode excluir a própria conta.', 'status' => 422];
                 }
 
-                $data = ['name' => (string) $target->name, 'photo' => $target->profile_photo];
+                // A foto de perfil são dois arquivos: o recorte que as telas mostram
+                // e o original de onde ele saiu. Levar só o primeiro deixaria o
+                // segundo órfão em assets/uploads/profiles.
+                $data = [
+                    'name' => (string) $target->name,
+                    'photos' => array_filter([$target->profile_photo, $target->profile_photo_source]),
+                ];
                 $target->delete();
 
                 return $data;
@@ -228,9 +235,7 @@ final class UserController extends Controller
         if (isset($result['error'])) {
             return response()->json(['message' => $result['error']], $result['status']);
         }
-        if ($result['photo']) {
-            $uploads->remove([(string) $result['photo']]);
-        }
+        $uploads->remove(array_map(strval(...), $result['photos']));
 
         return response()->json(['message' => 'Conta de '.$result['name'].' excluída com sucesso.']);
     }

@@ -41,6 +41,7 @@ export function ProductsSection({ data, highlight, selection, options, onSelectM
           table={{ head: ["Modelo", "RAPs"], rows: data.reportsByModel.map((row) => [row.label, row.value]) }}
         >
           <RankingBars
+            animationKey="quality:products:model"
             data={data.reportsByModel}
             measure="RAPs"
             highlightData={selection && highlight ? highlight.reportsByModel : null}
@@ -59,6 +60,7 @@ export function ProductsSection({ data, highlight, selection, options, onSelectM
           table={{ head: ["Máquina", "RAPs"], rows: data.reportsByMachineType.map((row) => [row.label, row.value]) }}
         >
           <RankingBars
+            animationKey="quality:products:machine-type"
             data={data.reportsByMachineType}
             measure="RAPs"
             highlightData={selection && highlight ? highlight.reportsByMachineType : null}

@@ -43,9 +43,9 @@ export function DesktopUpdateNotice() {
   }
 
   return (
-    <aside className="fixed bottom-5 right-5 z-[100] w-[min(390px,calc(100vw-2.5rem))] overflow-hidden rounded-2xl border border-black/10 bg-white text-black shadow-2xl" role="status" aria-live="polite">
+    <aside className="fixed bottom-5 right-5 z-[100] w-[min(390px,calc(100vw-2.5rem))] overflow-hidden rounded-2xl border border-hairline bg-white text-black shadow-2xl" role="status" aria-live="polite">
       <div className="flex items-start gap-3 p-4">
-        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-red-50 text-[#db0f0f]">
+        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-red-50 text-metalique">
           {downloading ? <LoaderCircle className="size-5 animate-spin" /> : downloaded ? <RefreshCw className="size-5" /> : <Download className="size-5" />}
         </span>
         <div className="min-w-0 flex-1">
@@ -58,14 +58,14 @@ export function DesktopUpdateNotice() {
           {downloading && (
             <div className="mt-3">
               <div className="h-1.5 overflow-hidden rounded-full bg-neutral-200">
-                <div className="h-full rounded-full bg-[#db0f0f] transition-[width]" style={{ width: `${status.progress || 0}%` }} />
+                <div className="h-full rounded-full bg-metalique transition-[width]" style={{ width: `${status.progress || 0}%` }} />
               </div>
               <p className="mt-1 text-xs text-neutral-500">Baixando: {status.progress || 0}%</p>
             </div>
           )}
           {actionError && <p className="mt-2 text-xs text-red-700">{actionError}</p>}
           {!downloading && (
-            <button className="mt-3 rounded-full bg-[#db0f0f] px-4 py-2 text-sm font-semibold text-white hover:bg-[#c20d0d]" type="button" onClick={() => void update()}>
+            <button className="mt-3 rounded-full bg-metalique px-4 py-2 text-sm font-semibold text-white hover:bg-metalique-strong" type="button" onClick={() => void update()}>
               {downloaded ? "Instalar e reiniciar" : "Atualizar agora"}
             </button>
           )}

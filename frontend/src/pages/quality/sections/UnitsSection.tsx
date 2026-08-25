@@ -8,6 +8,7 @@ export function UnitsSection({
   data,
   highlight,
   selection,
+  target,
   onSelectShed,
   onSelectPeriod,
   onSelectGatePeriod,
@@ -16,6 +17,8 @@ export function UnitsSection({
   data: QualityDashboard
   highlight: QualityDashboard | null
   selection: QualityChartSelection | null
+  /** Teto de RAPs por mês vindo da engrenagem, ou null quando não há meta. */
+  target: number | null
   onSelectShed: (shed: string) => void
   onSelectPeriod: (period: string) => void
   onSelectGatePeriod: (gate: string, period: string) => void
@@ -48,6 +51,7 @@ export function UnitsSection({
           table={{ head: ["Barracão", "RAPs"], rows: data.reportsByShed.map((row) => [row.label, row.value]) }}
         >
           <ShareDonut
+            animationKey="quality:units:shed-share"
             data={data.reportsByShed}
             measure="RAPs"
             highlightData={selection && highlight ? highlight.reportsByShed : null}
@@ -59,14 +63,16 @@ export function UnitsSection({
         <ChartCard
           title="Evolução mensal"
           description="Piora ou melhora do conjunto filtrado."
-          help="A mesma série de RAPs por mês, em linha, para acompanhar a tendência do recorte escolhido. Com um barracão selecionado no gráfico ao lado, a linha vermelha passa a ser só a parcela daquela unidade sobre o total apagado ao fundo."
+          help="A mesma série de RAPs por mês, em linha, para acompanhar a tendência do recorte escolhido. Com um barracão selecionado no gráfico ao lado, a linha cheia passa a ser só a parcela daquela unidade sobre o total apagado ao fundo. A reta tracejada é a tendência linear dessa mesma série: apontando para baixo, os apontamentos estão caindo no período; para cima, subindo. A linha pontilhada horizontal, quando aparece, é a meta da engrenagem - um teto que a série precisa manter abaixo, e é por isso que ela não tem o mesmo traço da tendência."
           table={{ head: ["Mês", "RAPs"], rows: data.reportsByPeriod.map((row) => [row.label, row.value]) }}
         >
           <TrendLine
+            animationKey="quality:units:period-trend"
             data={data.reportsByPeriod}
             measure="RAPs"
             highlightData={selection && highlight ? highlight.reportsByPeriod : null}
             selectedPeriod={selectedPeriod}
+            target={target}
             onSelect={onSelectPeriod}
           />
         </ChartCard>
@@ -82,6 +88,7 @@ export function UnitsSection({
         }}
       >
         <GateColumns
+          animationKey="quality:units:gate-period"
           data={data.reportsByGate}
           measure="RAPs"
           highlightData={selection && highlight ? highlight.reportsByGate : null}
@@ -99,6 +106,7 @@ export function UnitsSection({
         table={{ head: ["Tipo", "RAPs"], rows: data.reportsByProblemType.map((row) => [row.label, row.value]) }}
       >
         <RankingBars
+          animationKey="quality:units:problem-type"
           data={data.reportsByProblemType}
           measure="RAPs"
           highlightData={selection && highlight ? highlight.reportsByProblemType : null}

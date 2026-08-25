@@ -1,10 +1,13 @@
 import { type FormEvent, useCallback, useEffect, useState } from "react"
+import { createPortal } from "react-dom"
 import { AlertTriangle, Check, ChevronDown, Eye, EyeOff, LoaderCircle, Pencil, Plus, ShieldCheck, SlidersHorizontal, Trash2, UserRound, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Scroller } from "@/components/ui/scroller"
 import { getJson, postJson, profilePhotoUrl } from "@/lib/api"
+import { HORIZONTAL_TABLE } from "@/lib/smoothScroll"
 import type { PermissionKey } from "@/types"
 
 type ManagedUser = {
@@ -73,6 +76,7 @@ const QUALITY_ACTION_KEYS: PermissionKey[] = [
   "quality.manage",
   "quality.create_rap",
   "quality.create_dispatch",
+  "quality.create_complaint",
   "quality.import",
 ]
 
@@ -241,7 +245,7 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-[clamp(30px,2.4vw,43px)] font-medium leading-none">Usuários</h1>
-          <p className="mt-2 text-sm text-[#52514e]">Contas, cargos e permissões de acesso ao sistema.</p>
+          <p className="mt-2 text-sm text-ink-soft">Contas, cargos e permissões de acesso ao sistema.</p>
         </div>
         <Button className="rounded-full" type="button" onClick={() => { setError(""); setShowPassword(false); setOpenPermissionGroup(null); setForm({ ...emptyForm }) }}>
           <Plus /> Novo usuário
@@ -256,13 +260,13 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
       )}
       {error && !form && <p className="mt-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{error}</p>}
 
-      <div className="mt-6 overflow-hidden rounded-lg border border-black/10 bg-white">
+      <div className="mt-6 overflow-hidden rounded-lg border border-hairline bg-white">
         {isLoading ? (
-          <div className="grid h-56 place-items-center text-[#898781]"><LoaderCircle className="size-7 animate-spin" aria-label="Carregando usuários" /></div>
+          <div className="grid h-56 place-items-center text-ink-muted"><LoaderCircle className="size-7 animate-spin" aria-label="Carregando usuários" /></div>
         ) : (
-          <div className="overflow-x-auto">
+          <Scroller className="overflow-x-auto" options={HORIZONTAL_TABLE}>
             <table className="w-full min-w-[920px] border-collapse text-left text-sm">
-              <thead className="border-b border-black/10 bg-[#f7f7f6] text-xs uppercase text-[#6e6c67]">
+              <thead className="border-b border-hairline bg-[#f7f7f6] text-xs uppercase text-ink-muted">
                 <tr>
                   <th className="px-5 py-4 font-medium">Usuário</th>
                   <th className="px-5 py-4 font-medium">Cargo</th>
@@ -280,24 +284,24 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
                     <tr key={user.id} className="hover:bg-[#fafafa]">
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full bg-[#f2f2f2] font-medium text-[#db0f0f]">
+                          <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full bg-[#f2f2f2] font-medium text-metalique">
                             {photo ? <img className="size-full object-cover" src={photo} alt="" /> : initials(user.name) || <UserRound className="size-5" />}
                           </div>
                           <div>
                             <p className="font-medium text-black">{user.name}</p>
-                            <p className="text-xs text-[#6e6c67]">{user.email}</p>
+                            <p className="text-xs text-ink-muted">{user.email}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="px-5 py-4 text-[#52514e]">{user.job_title}</td>
-                      <td className="px-5 py-4 text-[#52514e]">{user.sector}</td>
+                      <td className="px-5 py-4 text-ink-soft">{user.job_title}</td>
+                      <td className="px-5 py-4 text-ink-soft">{user.sector}</td>
                       <td className="px-5 py-4">
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium">
-                          {user.role === "admin" && <ShieldCheck className="size-3.5 text-[#db0f0f]" />}
+                          {user.role === "admin" && <ShieldCheck className="size-3.5 text-metalique" />}
                           {user.is_primary_admin ? "Administrador principal" : user.role === "admin" ? "Administrador" : "Usuário"}
                         </span>
                       </td>
-                      <td className="max-w-64 px-5 py-4 text-xs text-[#52514e]">
+                      <td className="max-w-64 px-5 py-4 text-xs text-ink-soft">
                         {user.role === "admin" ? "Acesso total" : `${user.permissions.filter((permission) => assignablePermissionKeys.has(permission)).length} de ${assignablePermissionKeys.size} permissões`}
                       </td>
                       <td className="px-5 py-4">
@@ -327,17 +331,25 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
                 })}
               </tbody>
             </table>
-          </div>
+          </Scroller>
         )}
       </div>
 
-      {form && (
-        <div className="fixed inset-0 z-50 grid place-items-start overflow-y-auto bg-black/45 p-4 py-8" role="dialog" aria-modal="true" aria-labelledby="user-form-title">
+      {/* Fora do painel por portal: o painel é mascarado (ver `.scroll-fade` em
+          base.css) e máscara recorta descendente `position: fixed`. */}
+      {form && createPortal(
+        <Scroller
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/45"
+          contentClassName="grid place-items-start p-4 py-8"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="user-form-title"
+        >
           <section className="mx-auto w-full max-w-2xl rounded-lg bg-white p-6 text-black shadow-2xl sm:p-8">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <h2 id="user-form-title" className="text-2xl font-semibold">{form.id ? "Editar usuário" : "Novo usuário"}</h2>
-                <p className="mt-1 text-sm text-[#6e6c67]">Defina os dados da conta e o que ela poderá acessar.</p>
+                <p className="mt-1 text-sm text-ink-muted">Defina os dados da conta e o que ela poderá acessar.</p>
               </div>
               <Button variant="ghost" size="icon" type="button" onClick={() => setForm(null)} aria-label="Fechar"><X /></Button>
             </div>
@@ -347,13 +359,13 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
             <form className="mt-6 space-y-6" onSubmit={saveUser}>
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="text-sm font-medium">Nome completo
-                  <input className="mt-1.5 h-11 w-full rounded-md border border-black/20 px-3 outline-none focus:border-[#db0f0f]" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required maxLength={120} />
+                  <input className="mt-1.5 h-11 w-full rounded-md border border-hairline-strong px-3 outline-none focus:border-metalique" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required maxLength={120} />
                 </label>
                 <div className="text-sm font-medium">
                   <label htmlFor="user-job-title">Cargo</label>
                   <Combobox
                     id="user-job-title"
-                    className="mt-1.5 h-11 rounded-md border-black/20"
+                    className="mt-1.5 h-11 rounded-md border-hairline-strong"
                     value={form.jobTitle}
                     onChange={(jobTitle) => setForm({ ...form, jobTitle })}
                     options={jobTitles}
@@ -367,7 +379,7 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
                   <label htmlFor="user-sector">Setor principal</label>
                   <Combobox
                     id="user-sector"
-                    className="mt-1.5 h-11 rounded-md border-black/20"
+                    className="mt-1.5 h-11 rounded-md border-hairline-strong"
                     value={form.sector}
                     onChange={(sector) => setForm({ ...form, sector })}
                     options={sectors}
@@ -378,10 +390,10 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
                   />
                 </div>
                 <label className="text-sm font-medium">E-mail
-                  <input className="mt-1.5 h-11 w-full rounded-md border border-black/20 px-3 outline-none focus:border-[#db0f0f]" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required maxLength={254} />
+                  <input className="mt-1.5 h-11 w-full rounded-md border border-hairline-strong px-3 outline-none focus:border-metalique" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required maxLength={254} />
                 </label>
                 <label className="text-sm font-medium">Tipo de conta
-                  <select className="mt-1.5 h-11 w-full rounded-md border border-black/20 bg-white px-3 outline-none focus:border-[#db0f0f]" value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value as UserForm["role"] })}>
+                  <select className="mt-1.5 h-11 w-full rounded-md border border-hairline-strong bg-white px-3 outline-none focus:border-metalique" value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value as UserForm["role"] })}>
                     <option value="user">Usuário com permissões</option>
                     <option value="admin">Administrador</option>
                   </select>
@@ -389,23 +401,23 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
                 {!form.id && (
                   <label className="text-sm font-medium sm:col-span-2">Senha temporária inicial
                     <div className="relative mt-1.5">
-                      <input className="h-11 w-full rounded-md border border-black/20 px-3 pr-11 outline-none focus:border-[#db0f0f]" type={showPassword ? "text" : "password"} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required minLength={8} maxLength={72} autoComplete="new-password" />
-                      <button className="absolute inset-y-0 right-0 grid w-11 place-items-center text-[#6e6c67]" type="button" onClick={() => setShowPassword((current) => !current)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} title={showPassword ? "Ocultar senha" : "Mostrar senha"}>
+                      <input className="h-11 w-full rounded-md border border-hairline-strong px-3 pr-11 outline-none focus:border-metalique" type={showPassword ? "text" : "password"} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required minLength={8} maxLength={72} autoComplete="new-password" />
+                      <button className="absolute inset-y-0 right-0 grid w-11 place-items-center text-ink-muted" type="button" onClick={() => setShowPassword((current) => !current)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} title={showPassword ? "Ocultar senha" : "Mostrar senha"}>
                         {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                       </button>
                     </div>
-                    <span className="mt-1.5 block text-xs font-normal text-[#6e6c67]">Mínimo de 8 caracteres, com número e caractere especial. O usuário deverá alterá-la no primeiro acesso.</span>
+                    <span className="mt-1.5 block text-xs font-normal text-ink-muted">Mínimo de 8 caracteres, com número e caractere especial. O usuário deverá alterá-la no primeiro acesso.</span>
                   </label>
                 )}
               </div>
 
-              <div className="rounded-lg border border-black/10 bg-[#fafafa] p-4">
+              <div className="rounded-lg border border-hairline bg-[#fafafa] p-4">
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <h3 className="font-semibold">Permissões de acesso</h3>
-                    <p className="mt-1 text-xs text-[#6e6c67]">Escolha o que este usuário poderá visualizar e administrar.</p>
+                    <p className="mt-1 text-xs text-ink-muted">Escolha o que este usuário poderá visualizar e administrar.</p>
                   </div>
-                  {form.role === "admin" && <span className="shrink-0 text-xs font-medium text-[#db0f0f]">Acesso total</span>}
+                  {form.role === "admin" && <span className="shrink-0 text-xs font-medium text-metalique">Acesso total</span>}
                 </div>
 
                 <div className="mt-4 grid gap-2 sm:grid-cols-3">
@@ -423,13 +435,13 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
                         onClick={() => setOpenPermissionGroup(isOpen ? null : group)}
                         className={`flex h-11 w-full items-center gap-2 rounded-lg border px-3 text-sm transition-colors ${
                           isOpen
-                            ? "border-[#db0f0f] bg-red-50 text-[#b00c0c]"
-                            : "border-black/10 bg-white text-[#52514e] hover:border-black/20 hover:bg-neutral-50"
+                            ? "border-metalique bg-red-50 text-[#b00c0c]"
+                            : "border-hairline bg-white text-ink-soft hover:border-hairline-strong hover:bg-neutral-50"
                         }`}
                       >
                         <SlidersHorizontal className="size-4 shrink-0" />
                         <span className="min-w-0 flex-1 truncate text-left font-medium">{group}</span>
-                        <span className="rounded-full bg-[#db0f0f] px-1.5 py-0.5 text-[11px] font-semibold text-white">
+                        <span className="rounded-full bg-metalique px-1.5 py-0.5 text-[13px] font-semibold text-white">
                           {selectedGroupCount}/{definitions.length}
                         </span>
                         <ChevronDown className={`size-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
@@ -439,11 +451,11 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
                 </div>
 
                 {openPermissionGroup && (
-                  <div className="mt-3 overflow-hidden rounded-lg border border-black/10 bg-white">
-                    <div className="flex items-center justify-between gap-3 border-b border-black/10 px-4 py-3">
+                  <div className="mt-3 overflow-hidden rounded-lg border border-hairline bg-white">
+                    <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3">
                       <div>
                         <h4 className="font-semibold">{openPermissionGroup}</h4>
-                        <p className="mt-0.5 text-xs text-[#6e6c67]">
+                        <p className="mt-0.5 text-xs text-ink-muted">
                           {openGroupSelectedCount} de {openGroupDefinitions.length} permissões selecionadas
                         </p>
                       </div>
@@ -458,13 +470,13 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
                           <label
                             key={permission.key}
                             className={`flex min-w-0 items-start gap-3 rounded-lg border p-3 transition-colors ${
-                              checked ? "border-[#db0f0f]/30 bg-red-50/60" : "border-black/10 bg-white"
-                            } ${form.role === "admin" ? "cursor-not-allowed" : "cursor-pointer hover:border-black/20"}`}
+                              checked ? "border-metalique/30 bg-red-50/60" : "border-hairline bg-white"
+                            } ${form.role === "admin" ? "cursor-not-allowed" : "cursor-pointer hover:border-hairline-strong"}`}
                           >
                             <input className="mt-0.5 size-4 shrink-0 accent-[#db0f0f]" type="checkbox" checked={checked} disabled={form.role === "admin"} onChange={() => togglePermission(permission.key)} />
                             <span className="min-w-0">
                               <span className="block text-sm font-medium">{permission.label}</span>
-                              <span className="mt-0.5 block text-xs leading-relaxed text-[#6e6c67]">{permission.description}</span>
+                              <span className="mt-0.5 block text-xs leading-relaxed text-ink-muted">{permission.description}</span>
                             </span>
                           </label>
                         )
@@ -479,7 +491,7 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
                 Conta ativa
               </label>
 
-              <div className="flex justify-end gap-3 border-t border-black/10 pt-5">
+              <div className="flex justify-end gap-3 border-t border-hairline pt-5">
                 <Button variant="outline" type="button" onClick={() => setForm(null)}>Cancelar</Button>
                 <Button type="submit" disabled={isSaving}>
                   {isSaving && <LoaderCircle className="animate-spin" />}
@@ -488,7 +500,8 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
               </div>
             </form>
           </section>
-        </div>
+        </Scroller>,
+        document.body,
       )}
 
       <Dialog open={Boolean(userToDelete)} onOpenChange={(open) => { if (!open && !isDeleting) setUserToDelete(null) }}>

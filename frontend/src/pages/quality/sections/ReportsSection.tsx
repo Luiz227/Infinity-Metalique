@@ -1,202 +1,196 @@
-import { useState } from "react"
-import { Camera, Printer } from "lucide-react"
+import { useEffect, useState } from "react"
+import { Camera } from "lucide-react"
 
 import {
-  RecordDeleteButton,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   RecordDeleteDialog,
   type DeleteResult,
   type RecordKind,
   type RecordTarget,
 } from "@/pages/quality/RecordDeleteDialog"
 import { formatDate } from "@/pages/quality/format"
-import type { DispatchRow, Paginated, ReportRow } from "@/pages/quality/types"
+import { PlanBadge } from "@/pages/quality/PlanBadge"
+import {
+  Free,
+  Pagination,
+  PerPage,
+  RecordTable,
+} from "@/pages/quality/sections/RecordTable"
+import type { ComplaintRow, DispatchRow, Paginated, ReportRow } from "@/pages/quality/types"
+import type { PermissionKey } from "@/types"
 
-function Pagination({ records, page, onPageChange }: {
-  records: Paginated<unknown> | null
-  page: number
-  onPageChange: (page: number) => void
-}) {
-  if (!records || records.total <= records.perPage) return null
+export { PER_PAGE_OPTIONS } from "@/pages/quality/sections/RecordTable"
 
-  const lastPage = Math.max(1, Math.ceil(records.total / records.perPage))
-
-  return (
-    <div className="flex items-center gap-2 text-xs text-[#52514e]">
-      <button
-        type="button"
-        className="rounded-full border border-black/10 px-3 py-1 hover:bg-neutral-50 disabled:opacity-40"
-        onClick={() => onPageChange(page - 1)}
-        disabled={page <= 1}
-      >
-        Anterior
-      </button>
-      <span className="[font-variant-numeric:tabular-nums]">{page} de {lastPage}</span>
-      <button
-        type="button"
-        className="rounded-full border border-black/10 px-3 py-1 hover:bg-neutral-50 disabled:opacity-40"
-        onClick={() => onPageChange(page + 1)}
-        disabled={page >= lastPage}
-      >
-        Próxima
-      </button>
-    </div>
-  )
-}
-
-/** Consulta, impressão e gestão dos RAPs e RETIR registrados. */
+/**
+ * Consulta, impressão e gestão dos registros da qualidade: RAP, RETIR e
+ * satisfação do cliente.
+ *
+ * Os três não cabem empilhados numa tela só, e ninguém compara um com o outro -
+ * quem chega aqui já sabe qual procura. Por isso um cartão só, com o tipo
+ * escolhido no lugar onde antes ficava o título de cada seção.
+ */
 export function ReportsSection({
   reports,
   dispatches,
+  complaints,
   reportsPage,
   dispatchesPage,
+  complaintsPage,
+  perPage,
   canDelete,
+  permissions,
   onReportsPageChange,
   onDispatchesPageChange,
+  onComplaintsPageChange,
+  onPerPageChange,
   onPrint,
   onPrintDispatch,
+  onPrintComplaint,
+  onOpenPlan,
   onDelete,
 }: {
   reports: Paginated<ReportRow> | null
   dispatches: Paginated<DispatchRow> | null
+  complaints: Paginated<ComplaintRow> | null
   reportsPage: number
   dispatchesPage: number
+  complaintsPage: number
+  perPage: number
   canDelete: boolean
+  permissions: PermissionKey[]
   onReportsPageChange: (page: number) => void
   onDispatchesPageChange: (page: number) => void
+  onComplaintsPageChange: (page: number) => void
+  onPerPageChange: (perPage: number) => void
   onPrint: (id: number) => void
   onPrintDispatch: (id: number) => void
+  onPrintComplaint: (id: number) => void
+  /** Abre o plano da reclamação, ou o formulário de abertura quando não há um. */
+  onOpenPlan: ((row: ComplaintRow) => void) | null
   onDelete: (kind: RecordKind, id: number) => Promise<DeleteResult>
 }) {
   const [deleteTarget, setDeleteTarget] = useState<RecordTarget | null>(null)
+  const [kind, setKind] = useState<RecordKind>("report")
+
+  // A satisfação segue a mesma permissão da aba homônima: quem não enxerga a
+  // aba também não a encontra por aqui.
+  const canSeeSatisfaction = permissions.includes("quality.satisfaction")
+  const views = [
+    { id: "report" as const, label: "RAPs", counter: "RAPs" },
+    { id: "dispatch" as const, label: "Produtos coletados", counter: "RETIR" },
+    ...(canSeeSatisfaction
+      ? [{ id: "complaint" as const, label: "Satisfações", counter: "registros de satisfação" }]
+      : []),
+  ]
+
+  useEffect(() => {
+    if (kind === "complaint" && !canSeeSatisfaction) setKind("report")
+  }, [canSeeSatisfaction, kind])
+
+  const current = views.find((view) => view.id === kind) ?? views[0]
+  const records = kind === "report" ? reports : kind === "dispatch" ? dispatches : complaints
+  const page = kind === "report" ? reportsPage : kind === "dispatch" ? dispatchesPage : complaintsPage
+  const changePage = kind === "report"
+    ? onReportsPageChange
+    : kind === "dispatch" ? onDispatchesPageChange : onComplaintsPageChange
 
   return (
     <>
-      <div className="grid gap-4">
-        <section className="rounded-2xl bg-white p-5 shadow-[0_1px_2px_rgba(11,11,11,0.06)]">
+      <section className="rounded-card border border-hairline bg-surface p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="text-[15px] font-semibold text-[#0b0b0b]">RAPs registrados</h3>
-            <p className="mt-1 text-xs text-[#52514e]">
-              {reports ? `${reports.total} RAPs no filtro atual.` : "Carregando..."}
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <Select value={kind} onValueChange={(value) => setKind(value as RecordKind)}>
+              <SelectTrigger aria-label="Tipo de registro" className="h-9 w-auto text-[15px] font-semibold">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {views.map((view) => (
+                  <SelectItem key={view.id} value={view.id}>{view.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-ink-soft">
+              {records ? `${records.total} ${current.counter} no filtro atual.` : "Carregando..."}
             </p>
           </div>
-          <Pagination records={reports} page={reportsPage} onPageChange={onReportsPageChange} />
-        </div>
-
-        <div className="mt-4 overflow-auto">
-          <table className="w-full border-collapse text-left text-sm">
-            <thead>
-              <tr className="text-[#52514e]">
-                {["Nº", "Data", "Cliente / lote", "Máquina", "Barracão", "Gate", "Código", "Colaboradores", "Ações"].map((head) => (
-                  <th key={head} className="border-b border-[#e1e0d9] pb-2 pr-3 font-medium">{head}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {!reports && (
-                <tr><td className="py-3 text-[#898781]" colSpan={9}>Carregando apontamentos...</td></tr>
-              )}
-              {reports?.items.length === 0 && (
-                <tr><td className="py-3 text-[#898781]" colSpan={9}>Nenhum RAP no filtro atual.</td></tr>
-              )}
-              {reports?.items.map((row) => (
-                <tr key={row.id} className="border-b border-[#f0efec] last:border-0 align-top">
-                  <td className="py-2 pr-3 font-medium text-[#0b0b0b] [font-variant-numeric:tabular-nums]">{row.code}</td>
-                  <td className="py-2 pr-3 text-[#52514e] [font-variant-numeric:tabular-nums]">{formatDate(row.report_date)}</td>
-                  <td className="py-2 pr-3 text-[#0b0b0b]">{row.client ?? "-"}</td>
-                  <td className="py-2 pr-3 text-[#52514e]">{row.machine_type ?? "-"}{row.model ? ` · ${row.model}` : ""}</td>
-                  <td className="py-2 pr-3 text-[#52514e]">{row.shed ?? "-"}</td>
-                  <td className="py-2 pr-3 text-[#52514e]">{row.gate ?? "-"}</td>
-                  <td className="py-2 pr-3 text-[#52514e]" title={row.quality_code_description ?? ""}>{row.quality_code ?? "-"}</td>
-                  <td className="py-2 pr-3 text-[#52514e]">{row.employees ?? "-"}</td>
-                  <td className="py-2">
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 rounded-full border border-black/10 px-2.5 py-1 text-xs text-[#52514e] hover:bg-neutral-50"
-                        onClick={() => onPrint(row.id)}
-                      >
-                        <Printer className="size-3.5" /> Imprimir
-                      </button>
-                      {canDelete && (
-                        <RecordDeleteButton
-                          target={{ kind: "report", id: row.id, code: row.code }}
-                          onSelect={setDeleteTarget}
-                        />
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        </section>
-
-        <section className="rounded-2xl bg-white p-5 shadow-[0_1px_2px_rgba(11,11,11,0.06)]">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="text-[15px] font-semibold text-[#0b0b0b]">Produtos coletados (RETIR)</h3>
-            <p className="mt-1 text-xs text-[#52514e]">
-              {dispatches ? `${dispatches.total} RETIR no filtro atual.` : "Carregando..."}
-            </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <PerPage records={records} perPage={perPage} onPerPageChange={onPerPageChange} />
+            <Pagination records={records} page={page} onPageChange={changePage} />
           </div>
-          <Pagination records={dispatches} page={dispatchesPage} onPageChange={onDispatchesPageChange} />
         </div>
 
-        <div className="mt-4 overflow-auto">
-          <table className="w-full border-collapse text-left text-sm">
-            <thead>
-              <tr className="text-[#52514e]">
-                {["Nº", "Data", "Cliente", "Máquina", "Modelo", "Fotos", "Ações"].map((head) => (
-                  <th key={head} className="border-b border-[#e1e0d9] pb-2 pr-3 font-medium">{head}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {!dispatches && (
-                <tr><td className="py-3 text-[#898781]" colSpan={7}>Carregando produtos coletados...</td></tr>
-              )}
-              {dispatches?.items.length === 0 && (
-                <tr><td className="py-3 text-[#898781]" colSpan={7}>Nenhum RETIR no filtro atual.</td></tr>
-              )}
-              {dispatches?.items.map((row) => (
-                <tr key={row.id} className="border-b border-[#f0efec] last:border-0 align-top">
-                  <td className="py-2 pr-3 font-medium text-[#0b0b0b] [font-variant-numeric:tabular-nums]">{row.code}</td>
-                  <td className="py-2 pr-3 text-[#52514e] [font-variant-numeric:tabular-nums]">{formatDate(row.dispatch_date)}</td>
-                  <td className="py-2 pr-3 text-[#0b0b0b]">{row.client ?? "-"}</td>
-                  <td className="py-2 pr-3 text-[#52514e]">{row.machine_type ?? "-"}</td>
-                  <td className="py-2 pr-3 text-[#52514e]">{row.model ?? "-"}</td>
-                  <td className="py-2 pr-3 text-[#52514e]">
-                    <span className="inline-flex items-center gap-1">
-                      <Camera className="size-3.5" aria-hidden="true" />
-                      {row.photos}
-                    </span>
-                  </td>
-                  <td className="py-2">
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 rounded-full border border-black/10 px-2.5 py-1 text-xs text-[#52514e] hover:bg-neutral-50"
-                        onClick={() => onPrintDispatch(row.id)}
-                      >
-                        <Printer className="size-3.5" /> Imprimir
-                      </button>
-                      {canDelete && (
-                        <RecordDeleteButton
-                          target={{ kind: "dispatch", id: row.id, code: row.code }}
-                          onSelect={setDeleteTarget}
-                        />
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        </section>
-      </div>
+        {kind === "report" && (
+          <RecordTable
+            kind="report"
+            head={["Nº", "Data", "Cliente / lote", "Máquina", "Barracão", "Gate", "Código", "Colaboradores"]}
+            records={reports}
+            empty="Nenhum RAP no filtro atual."
+            canDelete={canDelete}
+            onView={onPrint}
+            onSelectDelete={setDeleteTarget}
+            cells={(row) => [
+              row.code,
+              formatDate(row.report_date),
+              <span className="text-ink">{row.client ?? "-"}</span>,
+              `${row.machine_type ?? "-"}${row.model ? ` · ${row.model}` : ""}`,
+              row.shed ?? "-",
+              row.gate ?? "-",
+              <span title={row.quality_code_description ?? undefined}>{row.quality_code ?? "-"}</span>,
+              <Free value={row.employees} />,
+            ]}
+          />
+        )}
+
+        {kind === "dispatch" && (
+          <RecordTable
+            kind="dispatch"
+            head={["Nº", "Data", "Cliente", "Máquina", "Modelo", "Fotos"]}
+            records={dispatches}
+            empty="Nenhum RETIR no filtro atual."
+            canDelete={canDelete}
+            onView={onPrintDispatch}
+            onSelectDelete={setDeleteTarget}
+            cells={(row) => [
+              row.code,
+              formatDate(row.dispatch_date),
+              <span className="text-ink">{row.client ?? "-"}</span>,
+              row.machine_type ?? "-",
+              row.model ?? "-",
+              <span className="inline-flex items-center gap-1">
+                <Camera className="size-3.5" aria-hidden="true" />
+                {row.photos}
+              </span>,
+            ]}
+          />
+        )}
+
+        {kind === "complaint" && (
+          <RecordTable
+            kind="complaint"
+            head={["Nº", "Data", "Cliente", "Máquina", "Modelo", "Ocorrência", "Plano de ação"]}
+            records={complaints}
+            empty="Nenhum registro de satisfação no filtro atual."
+            canDelete={canDelete}
+            onView={onPrintComplaint}
+            onSelectDelete={setDeleteTarget}
+            cells={(row) => [
+              row.code ?? "-",
+              formatDate(row.complaint_date),
+              <span className="text-ink">{row.client ?? "-"}</span>,
+              row.machine_type ?? "-",
+              row.model ?? "-",
+              <Free value={row.problem} />,
+              <PlanBadge complaint={row} onOpen={onOpenPlan} />,
+            ]}
+          />
+        )}
+      </section>
 
       <RecordDeleteDialog target={deleteTarget} onOpenChange={setDeleteTarget} onDelete={onDelete} />
     </>

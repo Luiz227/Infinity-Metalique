@@ -22,18 +22,18 @@ export function Field({ label, hint, required = false, children }: {
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-xs font-medium text-[#52514e]">
+      <span className="text-xs font-medium text-ink-soft">
         {label}
-        {required && <span className="text-[#db0f0f]" aria-hidden="true"> *</span>}
+        {required && <span className="text-metalique" aria-hidden="true"> *</span>}
       </span>
       {children}
-      {hint && <span className="text-[11px] text-[#898781]">{hint}</span>}
+      {hint && <span className="text-[13px] text-ink-muted">{hint}</span>}
     </label>
   )
 }
 
 const control =
-  "h-10 rounded-lg border border-black/10 bg-white px-3 text-sm text-[#0b0b0b] outline-none focus-visible:ring-2 focus-visible:ring-[#db0f0f]/35"
+  "h-10 rounded-lg border border-hairline bg-white px-3 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-metalique/35"
 
 export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`${control} ${props.className ?? ""}`} />
@@ -43,7 +43,7 @@ export function TextArea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
       {...props}
-      className={`min-h-[88px] rounded-lg border border-black/10 bg-white px-3 py-2 text-sm text-[#0b0b0b] outline-none focus-visible:ring-2 focus-visible:ring-[#db0f0f]/35 ${props.className ?? ""}`}
+      className={`min-h-[88px] rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-metalique/35 ${props.className ?? ""}`}
     />
   )
 }

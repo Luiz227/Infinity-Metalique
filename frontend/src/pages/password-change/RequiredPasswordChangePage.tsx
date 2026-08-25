@@ -20,7 +20,7 @@ function PasswordField({ id, label, value, onChange, autoComplete }: {
       <span className="relative mt-1.5 block">
         <input
           id={id}
-          className="h-11 w-full rounded-md border border-black/20 px-3 pr-11 outline-none focus:border-[#db0f0f] focus:ring-2 focus:ring-[#db0f0f]/15"
+          className="h-11 w-full rounded-md border border-hairline-strong px-3 pr-11 outline-none focus:border-metalique focus:ring-2 focus:ring-metalique/15"
           type={visible ? "text" : "password"}
           autoComplete={autoComplete}
           value={value}
@@ -28,7 +28,7 @@ function PasswordField({ id, label, value, onChange, autoComplete }: {
           required
         />
         <button
-          className="absolute inset-y-0 right-0 grid w-11 place-items-center text-[#6e6c67]"
+          className="absolute inset-y-0 right-0 grid w-11 place-items-center text-ink-muted"
           type="button"
           onClick={() => setVisible((current) => !current)}
           aria-label={visible ? "Ocultar senha" : "Mostrar senha"}
@@ -95,19 +95,19 @@ export function RequiredPasswordChangePage({ user, csrfToken, onChanged, onLogou
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-[#db0f0f] p-4 sm:p-8">
-      <section className="w-full max-w-md rounded-lg bg-white p-6 text-black shadow-2xl sm:p-8" aria-labelledby="required-password-title">
-        <div className="flex items-center justify-between gap-4 border-b border-black/10 pb-5">
+    <main className="surface-gradient grid min-h-screen place-items-center p-4 sm:p-8">
+      <section className="w-full max-w-md rounded-card border border-hairline bg-surface p-6 text-ink shadow-sm sm:p-8" aria-labelledby="required-password-title">
+        <div className="flex items-center justify-between gap-4 border-b border-hairline pb-5">
           <img className="h-auto w-28" src="/images/logo.svg" alt="Metalique Infinity" />
-          <span className="grid size-11 place-items-center rounded-full bg-red-50 text-[#db0f0f]" aria-hidden="true">
+          <span className="grid size-11 place-items-center rounded-full bg-red-50 text-metalique" aria-hidden="true">
             <ShieldCheck className="size-6" />
           </span>
         </div>
 
         <div className="mt-6">
-          <p className="text-sm text-[#6e6c67]">Primeiro acesso de {user.name}</p>
+          <p className="text-sm text-ink-muted">Primeiro acesso de {user.name}</p>
           <h1 id="required-password-title" className="mt-1 text-2xl font-semibold">Crie uma nova senha</h1>
-          <p className="mt-2 text-sm leading-relaxed text-[#52514e]">A senha temporária precisa ser substituída antes de acessar o sistema.</p>
+          <p className="mt-2 text-sm leading-relaxed text-ink-soft">A senha temporária precisa ser substituída antes de acessar o sistema.</p>
         </div>
 
         {error && <p className="mt-5 rounded-md bg-red-50 p-3 text-sm text-red-700" role="alert">{error}</p>}
@@ -116,7 +116,7 @@ export function RequiredPasswordChangePage({ user, csrfToken, onChanged, onLogou
           <PasswordField id="senha-atual" label="Senha temporária" value={currentPassword} onChange={setCurrentPassword} autoComplete="current-password" />
           <PasswordField id="nova-senha" label="Nova senha" value={newPassword} onChange={setNewPassword} autoComplete="new-password" />
           <PasswordField id="confirmar-senha" label="Confirmar nova senha" value={confirmation} onChange={setConfirmation} autoComplete="new-password" />
-          <p className="text-xs leading-relaxed text-[#6e6c67]">Mínimo de 8 caracteres, com pelo menos um número e um caractere especial.</p>
+          <p className="text-xs leading-relaxed text-ink-muted">Mínimo de 8 caracteres, com pelo menos um número e um caractere especial.</p>
 
           <Button className="mt-2 w-full" type="submit" disabled={isSaving || !csrfToken}>
             {isSaving ? <LoaderCircle className="animate-spin" /> : <KeyRound />}

@@ -41,11 +41,21 @@ final class ProfileController extends Controller
         ]);
     }
 
+    /**
+     * Recebe o recorte que as telas vão mostrar e, quando a foto é nova, também o
+     * original de onde ele saiu.
+     *
+     * Reposicionar usa esta mesma rota: manda um recorte novo e o retângulo novo,
+     * sem `profilePhotoSource`. Ausência de original significa "mantém o que já
+     * está lá" - é o que permite reenquadrar sem reenviar a imagem inteira, e por
+     * isso o original antigo só é apagado quando um novo o substitui.
+     */
     public function photo(Request $request, UploadService $uploads): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
         $file = $request->file('profilePhoto');
+        $sourceFile = $request->file('profilePhotoSource');
 
         if ($file === null) {
             return response()->json(['message' => 'Escolha uma imagem para continuar.'], 422);
@@ -53,26 +63,67 @@ final class ProfileController extends Controller
 
         try {
             $path = $uploads->storeImage($file, 'profiles');
+            $sourcePath = $sourceFile !== null ? $uploads->storeImage($sourceFile, 'profiles') : null;
         } catch (RuntimeException $error) {
+            // Se o segundo arquivo falhou, o primeiro já está no disco e ninguém
+            // mais aponta para ele.
+            $uploads->remove(array_filter([$path ?? null]));
+
             return response()->json(['message' => $error->getMessage()], 422);
         }
 
         $oldPhoto = $user->profile_photo ? (string) $user->profile_photo : null;
+        $oldSource = $user->profile_photo_source ? (string) $user->profile_photo_source : null;
+
+        $changes = ['profile_photo' => $path, 'profile_photo_crop' => self::crop($request->input('crop'))];
+        if ($sourcePath !== null) {
+            $changes['profile_photo_source'] = $sourcePath;
+        }
+
         try {
-            $user->forceFill(['profile_photo' => $path])->save();
+            $user->forceFill($changes)->save();
         } catch (QueryException) {
-            $uploads->remove([$path]);
+            $uploads->remove(array_filter([$path, $sourcePath]));
 
             return response()->json(['message' => 'Não foi possível atualizar a foto no banco de dados.'], 503);
         }
 
-        if ($oldPhoto !== null) {
-            $uploads->remove([$oldPhoto]);
-        }
+        $uploads->remove(array_filter([
+            $oldPhoto,
+            $sourcePath !== null ? $oldSource : null,
+        ]));
 
         return response()->json([
             'message' => 'Foto de perfil atualizada com sucesso.',
             'user' => $user->fresh()->toPublicArray(),
         ]);
+    }
+
+    /**
+     * O retângulo do recorte, em pixels da imagem original. Um enquadramento
+     * ilegível não vale uma requisição recusada: a foto em si está correta, e sem
+     * o retângulo o recortador só reabre do zero.
+     *
+     * @return array{x: float, y: float, size: float}|null
+     */
+    private static function crop(mixed $value): ?array
+    {
+        $decoded = is_string($value) ? json_decode($value, true) : $value;
+        if (! is_array($decoded)) {
+            return null;
+        }
+
+        foreach (['x', 'y', 'size'] as $key) {
+            if (! isset($decoded[$key]) || ! is_numeric($decoded[$key]) || ! is_finite((float) $decoded[$key])) {
+                return null;
+            }
+        }
+
+        $size = (float) $decoded['size'];
+        if ($size <= 0) {
+            return null;
+        }
+
+        return ['x' => (float) $decoded['x'], 'y' => (float) $decoded['y'], 'size' => $size];
     }
 }

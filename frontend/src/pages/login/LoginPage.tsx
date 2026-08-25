@@ -1,7 +1,6 @@
-import { type FormEvent, useCallback, useEffect, useState } from "react"
+import { type FormEvent, useCallback, useEffect, useRef, useState } from "react"
 import { Eye, EyeOff, LoaderCircle } from "lucide-react"
 
-import { AuthVisual, RedLines } from "@/components/auth/AuthVisual"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -12,7 +11,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Scroller } from "@/components/ui/scroller"
 import { postJson } from "@/lib/api"
+import { maskEmail, type RememberedUser } from "@/lib/rememberedUser"
 import type { ApiResponse, User } from "@/types"
 
 type ResetStatus = "pending" | "approved" | "rejected" | "completed" | "expired" | "invalid" | null
@@ -29,11 +31,15 @@ function savedResetRequest(): SavedResetRequest | null {
   }
 }
 
-export function LoginPage({ csrfToken, onAuthenticated }: {
+export function LoginPage({ csrfToken, rememberedUser, onAuthenticated, onClose, onRequestAccess, onForgetRememberedUser }: {
   csrfToken: string
+  rememberedUser: RememberedUser | null
   onAuthenticated: (user: User, csrfToken: string) => void
+  onClose: () => void
+  onRequestAccess: () => void
+  onForgetRememberedUser: () => void
 }) {
-  const [email, setEmail] = useState("")
+  const [email, setEmail] = useState(() => rememberedUser?.email || "")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false)
@@ -49,6 +55,9 @@ export function LoginPage({ csrfToken, onAuthenticated }: {
   const [error, setError] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isResetSubmitting, setIsResetSubmitting] = useState(false)
+  const emailInputRef = useRef<HTMLInputElement>(null)
+  const passwordInputRef = useRef<HTMLInputElement>(null)
+  const isRememberedAccount = Boolean(rememberedUser && email === rememberedUser.email)
 
   const checkResetStatus = useCallback(async () => {
     if (!csrfToken || !resetRequest) return
@@ -159,36 +168,142 @@ export function LoginPage({ csrfToken, onAuthenticated }: {
     setForgotEmail(email)
   }
 
+  const useAnotherAccount = () => {
+    onForgetRememberedUser()
+    setEmail("")
+    setPassword("")
+    setError("")
+    setNotice("")
+    window.requestAnimationFrame(() => emailInputRef.current?.focus())
+  }
+
   return (
-    <main className="page-frame login-frame">
-      <AuthVisual />
-      <section className="login-content">
-        <img className="login-logo" src="/images/logo.svg" alt="Metalique Infinity" />
-        <form className="login-form" id="login-form" onSubmit={submitLogin}>
-          {notice && <p className="rounded-md bg-green-50 p-3 text-sm text-green-800" role="status">{notice}</p>}
-          {resetStatus === "pending" && <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-800" role="status">Sua recuperação de senha está aguardando a decisão do administrador.</p>}
-          {resetStatus === "approved" && <button className="w-full rounded-md bg-green-50 p-3 text-left text-sm font-medium text-green-800 underline" type="button" onClick={() => setForgotPasswordOpen(true)}>Recuperação aprovada. Clique aqui para criar uma nova senha.</button>}
-          {error && <p className="form-feedback" role="alert">{error}</p>}
-          <div className="form-field">
-            <label htmlFor="email">E-mail</label>
-            <input id="email" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} value={email} onChange={(event) => setEmail(event.target.value)} required />
-          </div>
-          <div className="form-field">
-            <label htmlFor="senha">Senha</label>
-            <div className="password-control">
-              <input id="senha" type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
-              <button className="password-toggle" type="button" aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} title={showPassword ? "Ocultar senha" : "Mostrar senha"} onClick={() => setShowPassword((visible) => !visible)}>
-                {showPassword ? <EyeOff /> : <Eye />}
+    <>
+      <Dialog
+        open
+        onOpenChange={(open) => {
+          if (!open && !isSubmitting) onClose()
+        }}
+      >
+        <DialogContent
+          className="flex max-h-[calc(100dvh-1.5rem)] w-[calc(100%-1.5rem)] max-w-[27rem] flex-col gap-0 overflow-hidden rounded-[20px] border-hairline bg-surface p-0 shadow-[0_24px_80px_rgb(11_11_11/0.18)] sm:max-h-[calc(100dvh-3rem)]"
+          showCloseButton={!isSubmitting}
+          onEscapeKeyDown={(event) => {
+            if (isSubmitting) event.preventDefault()
+          }}
+          onPointerDownOutside={(event) => {
+            if (isSubmitting) event.preventDefault()
+          }}
+          onOpenAutoFocus={(event) => {
+            event.preventDefault()
+            const target = isRememberedAccount ? passwordInputRef : emailInputRef
+            target.current?.focus()
+          }}
+        >
+          <form className="flex min-h-0 flex-1 flex-col overflow-hidden" id="login-form" onSubmit={submitLogin}>
+            <DialogHeader className="shrink-0 border-b border-hairline px-6 pb-5 pr-14 pt-6 sm:px-8 sm:pb-6 sm:pr-16 sm:pt-8">
+              <DialogTitle className="text-2xl tracking-[-0.02em] text-ink sm:text-3xl">Bem-vindo de volta!</DialogTitle>
+              <DialogDescription>Seu trabalho é importante para nós.</DialogDescription>
+            </DialogHeader>
+
+            <Scroller
+              className="scroll-fade [--scroll-fade-size:1.5rem] min-h-0 flex-1 overflow-y-auto overscroll-contain"
+              contentClassName="px-6 py-6 sm:px-8"
+            >
+              {notice && <p className="mb-4 rounded-md bg-green-50 p-3 text-sm text-green-800" role="status">{notice}</p>}
+              {resetStatus === "pending" && <p className="mb-4 rounded-md bg-amber-50 p-3 text-sm text-amber-800" role="status">Sua recuperação de senha está aguardando a decisão do administrador.</p>}
+              {resetStatus === "approved" && <button className="mb-4 w-full rounded-md bg-green-50 p-3 text-left text-sm font-medium text-green-800 underline" type="button" onClick={() => setForgotPasswordOpen(true)}>Recuperação aprovada. Clique aqui para criar uma nova senha.</button>}
+              {error && <p className="mb-4 rounded-md border border-metalique/25 bg-red-50 p-3 text-sm font-medium text-[#a50b0b]" role="alert">{error}</p>}
+
+              <label className="block text-sm font-medium text-ink-soft" htmlFor="email">
+                {isRememberedAccount ? "E-mail lembrado" : "E-mail"}
+                {isRememberedAccount ? (
+                  <Input
+                    ref={emailInputRef}
+                    className="mt-1.5 cursor-default bg-ink/[0.025] text-sm text-ink-soft"
+                    id="email"
+                    type="text"
+                    autoComplete="username"
+                    value={maskEmail(email)}
+                    readOnly
+                    aria-readonly="true"
+                    aria-describedby="remembered-email-description"
+                  />
+                ) : (
+                  <Input
+                    ref={emailInputRef}
+                    className="mt-1.5 text-sm"
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    required
+                  />
+                )}
+              </label>
+
+              {isRememberedAccount && (
+                <div className="mt-2 flex items-center justify-between gap-3 text-xs text-ink-muted">
+                  <span id="remembered-email-description">Conta lembrada neste dispositivo</span>
+                  <button
+                    className="shrink-0 font-medium transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-metalique/15"
+                    type="button"
+                    onClick={useAnotherAccount}
+                  >
+                    Usar outro e-mail
+                  </button>
+                </div>
+              )}
+
+              <label className="mt-4 block text-sm font-medium text-ink-soft" htmlFor="senha">
+                Senha
+                <span className="relative mt-1.5 block">
+                  <Input ref={passwordInputRef} className="pr-12 text-sm" id="senha" type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+                  <button
+                    className="absolute inset-y-0 right-1 grid w-10 place-items-center rounded-full text-ink-muted transition-colors hover:text-ink"
+                    type="button"
+                    aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                    title={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                    onClick={() => setShowPassword((visible) => !visible)}
+                  >
+                    {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </button>
+                </span>
+              </label>
+
+              <button
+                className="mt-4 block w-full text-center text-sm text-ink-soft transition-colors hover:text-ink"
+                type="button"
+                onClick={() => { setForgotEmail(email); setResetError(""); setForgotPasswordOpen(true) }}
+              >
+                Esqueceu sua senha?
               </button>
-            </div>
-          </div>
-          <button className="forgot-password" type="button" onClick={() => { setForgotEmail(email); setResetError(""); setForgotPasswordOpen(true) }}>Esqueceu sua senha?</button>
-        </form>
-        <button className="login-button" type="submit" form="login-form" disabled={isSubmitting || !csrfToken}>
-          {isSubmitting ? <LoaderCircle className="mx-auto size-6 animate-spin" aria-label="Entrando" /> : "Entrar"}
-        </button>
-        <RedLines />
-      </section>
+            </Scroller>
+
+            <DialogFooter className="shrink-0 flex-col gap-3 border-t border-hairline px-6 py-5 sm:flex-col sm:justify-start sm:px-8 sm:py-6">
+              <Button className="w-full" size="lg" type="submit" disabled={isSubmitting || !csrfToken}>
+                {isSubmitting && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+                {isSubmitting ? "Entrando..." : "Entrar"}
+              </Button>
+
+              <p className="text-center text-sm text-ink-soft">
+                Ainda não tem acesso?{" "}
+                <button
+                  className="font-medium text-metalique transition-colors hover:text-metalique-strong disabled:pointer-events-none disabled:opacity-50"
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={onRequestAccess}
+                >
+                  Solicitar acesso
+                </button>
+              </p>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={forgotPasswordOpen} onOpenChange={setForgotPasswordOpen}>
         <DialogContent className="max-w-md">
@@ -202,17 +317,17 @@ export function LoginPage({ csrfToken, onAuthenticated }: {
               <div className="mt-5 space-y-4">
                 <label className="block text-sm font-medium">Nova senha
                   <div className="relative mt-1.5">
-                    <input className="h-11 w-full rounded-md border border-black/20 px-3 pr-11 outline-none focus:border-[#db0f0f]" type={showNewPassword ? "text" : "password"} autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required />
-                    <button className="absolute inset-y-0 right-0 grid w-11 place-items-center text-[#6e6c67]" type="button" onClick={() => setShowNewPassword((current) => !current)} aria-label={showNewPassword ? "Ocultar senha" : "Mostrar senha"}>{showNewPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button>
+                    <input className="h-11 w-full rounded-md border border-hairline-strong px-3 pr-11 outline-none focus:border-metalique" type={showNewPassword ? "text" : "password"} autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required />
+                    <button className="absolute inset-y-0 right-0 grid w-11 place-items-center text-ink-muted" type="button" onClick={() => setShowNewPassword((current) => !current)} aria-label={showNewPassword ? "Ocultar senha" : "Mostrar senha"}>{showNewPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button>
                   </div>
                 </label>
                 <label className="block text-sm font-medium">Confirmar nova senha
                   <div className="relative mt-1.5">
-                    <input className="h-11 w-full rounded-md border border-black/20 px-3 pr-11 outline-none focus:border-[#db0f0f]" type={showConfirmation ? "text" : "password"} autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required />
-                    <button className="absolute inset-y-0 right-0 grid w-11 place-items-center text-[#6e6c67]" type="button" onClick={() => setShowConfirmation((current) => !current)} aria-label={showConfirmation ? "Ocultar senha" : "Mostrar senha"}>{showConfirmation ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button>
+                    <input className="h-11 w-full rounded-md border border-hairline-strong px-3 pr-11 outline-none focus:border-metalique" type={showConfirmation ? "text" : "password"} autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required />
+                    <button className="absolute inset-y-0 right-0 grid w-11 place-items-center text-ink-muted" type="button" onClick={() => setShowConfirmation((current) => !current)} aria-label={showConfirmation ? "Ocultar senha" : "Mostrar senha"}>{showConfirmation ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button>
                   </div>
                 </label>
-                <p className="text-xs text-[#6e6c67]">Use no mínimo 8 caracteres, com número e caractere especial.</p>
+                <p className="text-xs text-ink-muted">Use no mínimo 8 caracteres, com número e caractere especial.</p>
               </div>
               <DialogFooter className="mt-6">
                 <DialogClose asChild><Button type="button" variant="outline">Cancelar</Button></DialogClose>
@@ -244,7 +359,7 @@ export function LoginPage({ csrfToken, onAuthenticated }: {
               </DialogHeader>
               {resetError && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700" role="alert">{resetError}</p>}
               <label className="mt-5 block text-sm font-medium">E-mail
-                <input className="mt-1.5 h-11 w-full rounded-md border border-black/20 px-3 outline-none focus:border-[#db0f0f]" type="email" autoComplete="email" value={forgotEmail} onChange={(event) => setForgotEmail(event.target.value)} required />
+                <input className="mt-1.5 h-11 w-full rounded-md border border-hairline-strong px-3 outline-none focus:border-metalique" type="email" autoComplete="email" value={forgotEmail} onChange={(event) => setForgotEmail(event.target.value)} required />
               </label>
               <DialogFooter className="mt-6">
                 <DialogClose asChild><Button type="button" variant="outline">Cancelar</Button></DialogClose>
@@ -254,6 +369,6 @@ export function LoginPage({ csrfToken, onAuthenticated }: {
           )}
         </DialogContent>
       </Dialog>
-    </main>
+    </>
   )
 }

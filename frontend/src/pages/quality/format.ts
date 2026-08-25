@@ -29,6 +29,20 @@ export function formatPeriod(period: string): string {
   return month ? `${month} de ${match[1]}` : ""
 }
 
+/**
+ * Hoje como 'YYYY-MM-DD', pelo relógio de quem está na tela.
+ *
+ * `toISOString()` não serve: ele converte para UTC, e o Brasil está três horas
+ * atrás. Depois das 21h ele devolveria a data de amanhã - o que adiantaria o
+ * campo de data dos formulários e marcaria como atrasado um plano ainda no prazo.
+ */
+export function todayIso(): string {
+  const now = new Date()
+  const month = String(now.getMonth() + 1).padStart(2, "0")
+
+  return `${now.getFullYear()}-${month}-${String(now.getDate()).padStart(2, "0")}`
+}
+
 /** Percentual com uma casa, no padrão brasileiro. */
 export function formatPercent(value: number | null): string {
   if (value === null) return "-"

@@ -3,7 +3,9 @@ import { CheckCircle2, FileSpreadsheet, History, LoaderCircle, Upload } from "lu
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Scroller } from "@/components/ui/scroller"
 import { getJson, postForm, postJson } from "@/lib/api"
+import { HORIZONTAL_TABLE } from "@/lib/smoothScroll"
 
 type ImportGroup = { key: string; label: string; total: number; added: number; updated: number }
 type ImportSummary = {
@@ -93,7 +95,7 @@ export function QualityImportDialog({ open, csrfToken, onOpenChange, onImported 
 
   return (
     <Dialog open={open} onOpenChange={(next) => !isConfirming && onOpenChange(next)}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto" showCloseButton={!isConfirming}>
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] max-w-3xl flex-col overflow-hidden" showCloseButton={!isConfirming}>
         <DialogHeader>
           <DialogTitle>Importar dados da Qualidade</DialogTitle>
           <DialogDescription>
@@ -101,15 +103,21 @@ export function QualityImportDialog({ open, csrfToken, onOpenChange, onImported 
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-5">
-          <div className="flex flex-col gap-3 rounded-md border border-black/10 p-4 sm:flex-row sm:items-end">
+        {/* Quem rola é o miolo, não o cartão: mascarar o cartão inteiro
+            desbotaria o fundo e a sombra dele nas pontas. De quebra, título e
+            botões ficam sempre à vista. */}
+        <Scroller
+          className="scroll-fade [--scroll-fade-size:1.5rem] min-h-0 flex-1 overflow-y-auto"
+          contentClassName="grid gap-5"
+        >
+          <div className="flex flex-col gap-3 rounded-md border border-hairline p-4 sm:flex-row sm:items-end">
             <label className="min-w-0 flex-1 text-sm font-medium">
               Planilha Excel
               <input
                 ref={inputRef}
                 type="file"
                 accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12"
-                className="mt-2 block w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm file:mr-3 file:border-0 file:bg-transparent file:font-semibold file:text-[#db0f0f]"
+                className="mt-2 block w-full rounded-md border border-hairline-strong bg-white px-3 py-2 text-sm file:mr-3 file:border-0 file:bg-transparent file:font-semibold file:text-metalique"
                 onChange={(event) => {
                   setFile(event.target.files?.[0] || null)
                   setPreview(null)
@@ -128,14 +136,14 @@ export function QualityImportDialog({ open, csrfToken, onOpenChange, onImported 
           {notice && <p className="flex items-center gap-2 rounded-md bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"><CheckCircle2 />{notice}</p>}
 
           {preview && (
-            <section aria-label="Prévia da importação" className="overflow-hidden rounded-md border border-black/10">
-              <div className="border-b border-black/10 bg-[#f5f5f4] px-4 py-3">
+            <section aria-label="Prévia da importação" className="overflow-hidden rounded-md border border-hairline">
+              <div className="border-b border-hairline bg-[#f5f5f4] px-4 py-3">
                 <h3 className="font-semibold">Prévia da atualização</h3>
-                <p className="mt-1 text-xs text-[#6e6c67]">Novo cria um registro; atualizar usa a chave existente e evita duplicidade.</p>
+                <p className="mt-1 text-xs text-ink-muted">Novo cria um registro; atualizar usa a chave existente e evita duplicidade.</p>
               </div>
-              <div className="overflow-x-auto">
+              <Scroller className="overflow-x-auto" options={HORIZONTAL_TABLE}>
                 <table className="w-full min-w-[520px] text-left text-sm">
-                  <thead className="border-b border-black/10 text-xs uppercase text-[#6e6c67]">
+                  <thead className="border-b border-hairline text-xs uppercase text-ink-muted">
                     <tr><th className="px-4 py-3">Conjunto</th><th className="px-4 py-3 text-right">Total</th><th className="px-4 py-3 text-right">Novos</th><th className="px-4 py-3 text-right">Atualizar</th></tr>
                   </thead>
                   <tbody>
@@ -149,8 +157,8 @@ export function QualityImportDialog({ open, csrfToken, onOpenChange, onImported 
                     ))}
                   </tbody>
                 </table>
-              </div>
-              <p className="border-t border-black/10 px-4 py-3 text-xs text-[#6e6c67]">
+              </Scroller>
+              <p className="border-t border-hairline px-4 py-3 text-xs text-ink-muted">
                 Catálogos encontrados: {preview.summary.catalogs.employees} colaboradores, {preview.summary.catalogs.codes} códigos e {preview.summary.catalogs.productLines} linhas de produto.
               </p>
               {preview.errors.length > 0 && (
@@ -164,17 +172,17 @@ export function QualityImportDialog({ open, csrfToken, onOpenChange, onImported 
 
           <section>
             <h3 className="flex items-center gap-2 text-sm font-semibold"><History />Importações recentes</h3>
-            <div className="mt-2 divide-y divide-black/5 rounded-md border border-black/10">
-              {history.length === 0 && <p className="px-4 py-3 text-sm text-[#6e6c67]">Nenhuma importação registrada.</p>}
+            <div className="mt-2 divide-y divide-black/5 rounded-md border border-hairline">
+              {history.length === 0 && <p className="px-4 py-3 text-sm text-ink-muted">Nenhuma importação registrada.</p>}
               {history.map((item, index) => (
                 <div key={`${item.fileName}-${item.createdAt}-${index}`} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-                  <div className="min-w-0"><p className="truncate font-medium">{item.fileName}</p><p className="text-xs text-[#6e6c67]">{item.userName} · {new Date(item.createdAt).toLocaleString("pt-BR")}</p></div>
+                  <div className="min-w-0"><p className="truncate font-medium">{item.fileName}</p><p className="text-xs text-ink-muted">{item.userName} · {new Date(item.createdAt).toLocaleString("pt-BR")}</p></div>
                   <span className={item.status === "completed" ? "text-emerald-700" : "text-amber-700"}>{item.status === "completed" ? "Concluída" : "Pendente"}</span>
                 </div>
               ))}
             </div>
           </section>
-        </div>
+        </Scroller>
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isConfirming}>Fechar</Button>

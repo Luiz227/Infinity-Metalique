@@ -56,14 +56,14 @@ export function Combobox({
         role="combobox"
         aria-expanded={open}
         className={cn(
-          "group flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-black/10 bg-white px-3 text-sm outline-none transition-colors",
-          "hover:border-black/20 focus-visible:ring-2 focus-visible:ring-[#db0f0f]/35 data-[state=open]:border-[#db0f0f]/40",
-          value ? "text-[#0b0b0b]" : "text-[#898781]",
+          "group flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-hairline bg-white px-3 text-sm outline-none transition-colors",
+          "hover:border-hairline-strong focus-visible:ring-2 focus-visible:ring-metalique/35 data-[state=open]:border-metalique/40",
+          value ? "text-ink" : "text-ink-muted",
           className,
         )}
       >
         <span className="line-clamp-1 text-left">{value || placeholder}</span>
-        <ChevronDown className="size-4 shrink-0 text-[#898781] transition-transform duration-150 group-data-[state=open]:rotate-180" />
+        <ChevronDown className="size-4 shrink-0 text-ink-muted transition-transform duration-150 group-data-[state=open]:rotate-180" />
       </PopoverTrigger>
 
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] min-w-[16rem]">
@@ -81,7 +81,7 @@ export function Combobox({
             {podeCriar && (
               <CommandGroup>
                 <CommandItem value={`__criar__${trimmed}`} onSelect={() => escolher(trimmed)}>
-                  <Plus className="size-4 text-[#db0f0f]" />
+                  <Plus className="size-4 text-metalique" />
                   Usar <span className="font-medium">“{trimmed}”</span>
                 </CommandItem>
               </CommandGroup>
@@ -90,14 +90,14 @@ export function Combobox({
             <CommandGroup>
               {clearable && value !== "" && (
                 <CommandItem value="__limpar__" onSelect={() => escolher("")}>
-                  <X className="size-4 text-[#898781]" />
+                  <X className="size-4 text-ink-muted" />
                   Limpar seleção
                 </CommandItem>
               )}
 
               {options.map((option) => (
                 <CommandItem key={option} value={option} onSelect={() => escolher(option)}>
-                  <Check className={cn("size-4 shrink-0 text-[#db0f0f]", option === value ? "opacity-100" : "opacity-0")} />
+                  <Check className={cn("size-4 shrink-0 text-metalique", option === value ? "opacity-100" : "opacity-0")} />
                   {option}
                 </CommandItem>
               ))}

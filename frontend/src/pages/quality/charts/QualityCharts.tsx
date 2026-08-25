@@ -1,4 +1,4 @@
-import { type ComponentProps, useId, useRef } from "react"
+import { type ComponentProps, useId, useLayoutEffect, useRef } from "react"
 import {
   Bar,
   BarChart,
@@ -9,6 +9,7 @@ import {
   LineChart,
   Pie,
   PieChart,
+  ReferenceLine,
   Sector,
   Tooltip,
   XAxis,
@@ -17,10 +18,11 @@ import {
 import type { PieSectorShapeProps } from "recharts"
 
 import { type ChartConfig, ChartContainer } from "@/components/ui/chart"
-import { useChartExpanded } from "@/pages/quality/charts/ChartCard"
+import { useChartExpanded, useChartMode, useChartPrintHeight } from "@/pages/quality/charts/ChartMode"
+import { useSeriesColor } from "@/pages/quality/charts/SeriesColor"
 import { formatPeriod } from "@/pages/quality/format"
 import type { GateValue, LabelValue, PeriodValue } from "@/pages/quality/types"
-import { BAR_SIZE, CATEGORICAL, INK, RADIUS_BAR, RADIUS_COLUMN, SERIES, axisProps } from "./tokens"
+import { BAR_SIZE, CATEGORICAL, INK, RADIUS_BAR, RADIUS_COLUMN, SERIES, STATUS, axisProps, labelInk } from "./tokens"
 
 const chartConfig = {
   total: { label: "Total", color: INK.axis },
@@ -28,6 +30,22 @@ const chartConfig = {
 } satisfies ChartConfig
 
 const ANIMATION_DURATION = 580
+const VERTICAL_BAR_GAP = 13
+// O Recharts aplica `barCategoryGap` nos dois lados de cada categoria.
+const VERTICAL_CATEGORY_INSET = VERTICAL_BAR_GAP / 2
+
+/**
+ * Guarda a última versão-base já exibida de cada gráfico durante esta sessão.
+ * As abas e rotas desmontam seus gráficos; sem essa memória, o Recharts trata
+ * cada retorno como uma primeira montagem e repete a animação de entrada.
+ */
+const chartAnimationMemory = new Map<string, string>()
+
+type ChartAnimationState = {
+  animationKey: string
+  visualSignature: string
+  animate: boolean
+}
 
 /** Estado do destaque numa linha, guardado para a marca seguinte entrar de onde esta parou. */
 type HighlightState = { highlighting: boolean; highlights: Record<string, number> }
@@ -80,6 +98,41 @@ function rowsSignature(rows: HighlightRow[]): string {
 }
 
 /**
+ * Anima na primeira exibição e quando o estado visual muda de verdade. Numa
+ * remontagem, o mesmo dado-base já nasce pronto, mesmo que a tela anterior
+ * tenha sido fechada com um recorte temporário selecionado.
+ */
+function useChartAnimation(
+  animationKey: string,
+  baseSignature: string,
+  visualSignature: string,
+): boolean {
+  const mode = useChartMode()
+  const state = useRef<ChartAnimationState | null>(null)
+  let current = state.current
+
+  if (!current || current.animationKey !== animationKey) {
+    current = {
+      animationKey,
+      visualSignature,
+      animate: chartAnimationMemory.get(animationKey) !== baseSignature,
+    }
+    state.current = current
+  } else if (current.visualSignature !== visualSignature) {
+    current = { animationKey, visualSignature, animate: true }
+    state.current = current
+  }
+
+  useLayoutEffect(() => {
+    chartAnimationMemory.set(animationKey, baseSignature)
+  }, [animationKey, baseSignature])
+
+  // No papel a marca nasce pronta. A folha imprime dois quadros depois de
+  // montar, e uma barra a meio caminho dos 0,58s sairia impressa pela metade.
+  return mode === "print" ? false : current.animate
+}
+
+/**
  * O Recharts recria as marcas sempre que os dados mudam - o `AnimatedItems` usa
  * o id da animação como `key`, então guardar o nó do DOM não adianta. Em vez
  * disso guardamos o destaque anterior e o devolvemos junto da linha: a marca
@@ -116,7 +169,7 @@ function useHighlightTransition(rows: HighlightRow[]): HighlightRow[] {
 /** Aviso curto no lugar do gráfico quando o filtro não devolve nada. */
 function Empty({ height }: { height: number }) {
   return (
-    <div className="grid place-items-center text-sm text-[#898781]" style={{ height }}>
+    <div className="grid place-items-center text-sm text-ink-muted" style={{ height }}>
       Nenhum registro para os filtros escolhidos.
     </div>
   )
@@ -133,8 +186,15 @@ function PowerChart({ height, selected, interactive, className, children }: {
   className?: string
   children: ComponentProps<typeof ChartContainer>["children"]
 }) {
-  const expanded = useChartExpanded()
-  const displayHeight = expanded ? Math.max(height, window.innerHeight - 175) : height
+  const mode = useChartMode()
+  const printHeight = useChartPrintHeight()
+  // No papel a altura vem da folha, sem `Math.max` com a altura de tela: é ela
+  // que sabe quanto sobrou depois do cabeçalho e do texto que o cartão traz.
+  const displayHeight = mode === "print"
+    ? printHeight
+    : mode === "fullscreen"
+      ? Math.max(height, window.innerHeight - 175)
+      : height
   return (
     <ChartContainer
       config={chartConfig}
@@ -150,6 +210,17 @@ function PowerChart({ height, selected, interactive, className, children }: {
 function ratio(selected: number, total: number): number {
   if (total <= 0) return 0
   return Math.max(0, Math.min(1, selected / total))
+}
+
+/**
+ * Poucas marcas podem respirar e ganhar peso; conforme categorias e séries se
+ * acumulam, o teto converge para o tamanho denso do design system. Como isto é
+ * `maxBarSize`, o próprio Recharts ainda reduz a barra quando o card estreita.
+ */
+function adaptiveBarSize(categories: number, series = 1): number {
+  const visibleMarks = Math.max(1, categories * Math.max(1, series))
+  const size = 88 / Math.sqrt(visibleMarks / 2)
+  return Math.round(Math.max(BAR_SIZE, Math.min(56, size)))
 }
 
 function interpolate(from: number, to: number, progress: number): number {
@@ -172,6 +243,29 @@ function detailedPercentage(selected: number, total: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(ratio(selected, total) * 100)
+}
+
+/**
+ * Reta de mínimos quadrados sobre a série, para responder de olho se o número
+ * está subindo ou descendo - a linha mês a mês sobe e desce e o olho não fecha
+ * a conta sozinho. O x é a posição do mês, e não a ordem dos pontos válidos:
+ * assim um mês sem registro continua ocupando o seu lugar no tempo. Devolve
+ * `null` com menos de dois pontos, quando não há tendência a traçar.
+ */
+function linearTrend(values: (number | null)[]): number[] | null {
+  const points = values
+    .map((value, index) => ({ x: index, y: value }))
+    .filter((point): point is { x: number; y: number } => point.y !== null && Number.isFinite(point.y))
+  if (points.length < 2) return null
+
+  const meanX = points.reduce((sum, point) => sum + point.x, 0) / points.length
+  const meanY = points.reduce((sum, point) => sum + point.y, 0) / points.length
+  const variance = points.reduce((sum, point) => sum + (point.x - meanX) ** 2, 0)
+  if (variance === 0) return null
+
+  const slope = points.reduce((sum, point) => sum + (point.x - meanX) * (point.y - meanY), 0) / variance
+  const intercept = meanY - slope * meanX
+  return values.map((_, index) => intercept + slope * index)
 }
 
 function mergeLabelRows(data: LabelValue[], highlightData: LabelValue[] | null): HighlightRow[] {
@@ -206,6 +300,7 @@ function ChartTooltip({ active, payload, label, measure = "", unit = "" }: {
     dataKey?: string | number
     value?: number
     color?: string
+    type?: string
     payload?: HighlightRow
   }[]
   label?: string | number
@@ -213,7 +308,13 @@ function ChartTooltip({ active, payload, label, measure = "", unit = "" }: {
   unit?: string
 }) {
   if (!active || !payload?.length) return null
-  const visible = payload.filter((entry) => entry.value !== undefined)
+  // O conteúdo padrão do Recharts descarta `tooltipType="none"`; como este
+  // tooltip é customizado, reproduzimos a mesma regra para séries auxiliares.
+  const visible = payload.filter((entry) => (
+    entry.value !== undefined
+    && entry.type !== "none"
+  ))
+  if (!visible.length) return null
 
   // A rosca não tem eixo de categoria: o nome da fatia é que faz o título.
   const heading = label ?? visible[0]?.name ?? ""
@@ -228,9 +329,9 @@ function ChartTooltip({ active, payload, label, measure = "", unit = "" }: {
     : typeof first?.period === "string" ? formatPeriod(first.period) : ""
 
   return (
-    <div className="min-w-32 max-w-72 rounded-lg border border-black/10 bg-white px-3 py-2 text-xs shadow-xl">
-      <p className="font-medium text-[#0b0b0b]">{heading}</p>
-      {description && <p className="mt-0.5 leading-snug text-[#52514e]">{description}</p>}
+    <div className="min-w-32 max-w-72 rounded-lg border border-hairline bg-white px-3 py-2 text-xs shadow-xl">
+      <p className="font-medium text-ink">{heading}</p>
+      {description && <p className="mt-0.5 leading-snug text-ink-soft">{description}</p>}
       {visible.map((entry, index) => {
         const row = entry.payload
         const key = String(entry.dataKey ?? entry.name ?? "value")
@@ -241,16 +342,16 @@ function ChartTooltip({ active, payload, label, measure = "", unit = "" }: {
         const series = entry.name && entry.name !== "value" && entry.name !== heading ? entry.name : ""
 
         return (
-          <div key={`${key}-${index}`} className="mt-1.5 flex items-start gap-1.5 text-[#52514e]">
+          <div key={`${key}-${index}`} className="mt-1.5 flex items-start gap-1.5 text-ink-soft">
             <span className="mt-1 size-2 shrink-0 rounded-full" style={{ background: entry.color }} aria-hidden="true" />
             <div className="min-w-0 flex-1">
               {series && <p>{series}</p>}
               {row?.__highlighting ? (
-                <p className="font-semibold text-[#0b0b0b]">
+                <p className="font-semibold text-ink">
                   {selected}{unit} de {total}{unit}{suffix} · {percentage(selected, total)}%
                 </p>
               ) : (
-                <p className="font-semibold text-[#0b0b0b]">{total}{unit}{suffix}</p>
+                <p className="font-semibold text-ink">{total}{unit}{suffix}</p>
               )}
             </div>
           </div>
@@ -320,8 +421,8 @@ function HorizontalPowerBar({ props }: { props: ShapeProps }) {
       <text
         x={valueX}
         y={y + height / 2}
-        fill={valueFitsInside ? "#ffffff" : INK.secondary}
-        fontSize={11}
+        fill={valueFitsInside ? labelInk(color) : INK.secondary}
+        fontSize={13}
         fontWeight={700}
         textAnchor={valueFitsInside ? "middle" : "start"}
         dominantBaseline="central"
@@ -338,7 +439,7 @@ function HorizontalPowerBar({ props }: { props: ShapeProps }) {
         x={x + visibleWidth + percentageOffset}
         y={y + height / 2}
         fill={INK.secondary}
-        fontSize={11}
+        fontSize={13}
         fontWeight={600}
         dominantBaseline="central"
         opacity={percentageOpacity}
@@ -400,8 +501,8 @@ function VerticalPowerBar({ props }: { props: ShapeProps }) {
       <text
         x={x + width / 2}
         y={visibleTop + visibleHeight / 2}
-        fill="#ffffff"
-        fontSize={10}
+        fill={labelInk(color)}
+        fontSize={12}
         fontWeight={700}
         textAnchor="middle"
         dominantBaseline="central"
@@ -418,7 +519,7 @@ function VerticalPowerBar({ props }: { props: ShapeProps }) {
         x={x + width / 2}
         y={visibleTop - 6}
         fill={INK.secondary}
-        fontSize={10}
+        fontSize={12}
         fontWeight={600}
         textAnchor="middle"
         opacity={percentageOpacity}
@@ -441,6 +542,7 @@ const renderDonutSector = (props: unknown) => <DonutPowerSector props={props as 
 
 /** Ranking horizontal com o total apagado e a parcela selecionada por cima. */
 export function RankingBars({
+  animationKey,
   data,
   highlightData = null,
   height = 280,
@@ -450,6 +552,7 @@ export function RankingBars({
   onSelect,
   collapsedLimit,
 }: {
+  animationKey: string
   data: LabelValue[]
   highlightData?: LabelValue[] | null
   height?: number
@@ -461,10 +564,13 @@ export function RankingBars({
   collapsedLimit?: number
 }) {
   const expanded = useChartExpanded()
+  const series = useSeriesColor()
   const visibleData = !expanded && collapsedLimit ? data.slice(0, collapsedLimit) : data
   const visibleLabels = new Set(visibleData.map((row) => row.label))
   const visibleHighlight = highlightData?.filter((row) => visibleLabels.has(row.label)) ?? null
-  const rows = useHighlightTransition(mergeLabelRows(visibleData, visibleHighlight))
+  const mergedRows = mergeLabelRows(visibleData, visibleHighlight)
+  const animate = useChartAnimation(animationKey, JSON.stringify(data), rowsSignature(mergedRows))
+  const rows = useHighlightTransition(mergedRows)
   if (!data.length) return <Empty height={height} />
 
   return (
@@ -477,7 +583,7 @@ export function RankingBars({
         data={rows}
         layout="vertical"
         margin={{ top: 4, right: 72, bottom: 4, left: 4 }}
-        barCategoryGap="22%"
+        barCategoryGap="12%"
         onClick={onSelect ? (state) => {
           const index = selectedIndex(state.activeTooltipIndex)
           if (index !== null && visibleData[index]) onSelect(visibleData[index].label)
@@ -492,15 +598,15 @@ export function RankingBars({
           interval={0}
           axisLine={false}
           {...axisProps}
-          tick={{ fill: INK.secondary, fontSize: 12 }}
+          tick={{ fill: INK.secondary, fontSize: 14 }}
         />
-        <Tooltip content={<ChartTooltip measure={measure} />} cursor={{ fill: "rgba(11,11,11,0.04)" }} />
+        <Tooltip content={<ChartTooltip measure={measure} />} cursor={{ fill: "var(--chart-cursor)" }} />
         <Bar
           dataKey="value"
-          fill={SERIES}
+          fill={series}
           radius={RADIUS_BAR}
-          maxBarSize={BAR_SIZE}
-          isAnimationActive
+          maxBarSize={adaptiveBarSize(visibleData.length)}
+          isAnimationActive={animate}
           animationDuration={ANIMATION_DURATION}
           animationEasing="ease-out"
           shape={renderHorizontalBar}
@@ -510,8 +616,48 @@ export function RankingBars({
   )
 }
 
+/**
+ * Teto da meta configurada na engrenagem. A leitura é "tem que ficar abaixo
+ * desta linha", então ela é vermelha e traz o número escrito: sem o rótulo, o
+ * tracejado seria só mais uma linha de grade. `extendDomain` garante que uma
+ * meta acima do maior mês ainda apareça, em vez de sair pelo topo.
+ *
+ * É função, e não componente: o Recharts identifica os filhos do gráfico pelo
+ * tipo do elemento, e um invólucro próprio não seria reconhecido como uma
+ * `ReferenceLine`.
+ */
+function targetLine(target: number | null | undefined) {
+  if (typeof target !== "number" || target <= 0) return null
+
+  return (
+    <ReferenceLine
+      y={target}
+      stroke={STATUS.critical}
+      // Pontilhado, e não tracejado: na Evolução mensal a reta da tendência já é
+      // um tracejado vermelho, e duas linhas do mesmo traço se confundiriam. A
+      // meta é um limite, não uma medição - o ponteado diz isso sozinho.
+      strokeDasharray="2 5"
+      strokeLinecap="round"
+      strokeWidth={2}
+      ifOverflow="extendDomain"
+      label={{
+        value: `Meta: máx. ${target}`,
+        position: "insideTopRight",
+        fill: STATUS.critical,
+        fontSize: 13,
+        fontWeight: 600,
+      }}
+    />
+  )
+}
+
+function isOverTarget(value: unknown, target: number | null | undefined): boolean {
+  return typeof target === "number" && target > 0 && Number(value ?? 0) > target
+}
+
 /** Evolução mensal com preenchimento vertical proporcional ao destaque. */
-export function TrendColumns({ data, highlightData = null, height = 260, measure, selectedPeriod = null, onSelect, compact = false }: {
+export function TrendColumns({ animationKey, data, highlightData = null, height = 260, measure, selectedPeriod = null, onSelect, compact = false, target = null }: {
+  animationKey: string
   data: PeriodValue[]
   highlightData?: PeriodValue[] | null
   height?: number
@@ -519,8 +665,13 @@ export function TrendColumns({ data, highlightData = null, height = 260, measure
   selectedPeriod?: string | null
   onSelect?: (period: string) => void
   compact?: boolean
+  /** Teto de RAPs no mês: a coluna que passar dele vira vermelha. */
+  target?: number | null
 }) {
-  const rows = useHighlightTransition(mergePeriodRows(data, highlightData))
+  const series = useSeriesColor()
+  const mergedRows = mergePeriodRows(data, highlightData)
+  const animate = useChartAnimation(animationKey, JSON.stringify(data), rowsSignature(mergedRows))
+  const rows = useHighlightTransition(mergedRows)
   if (!data.length) return <Empty height={height} />
 
   return (
@@ -533,7 +684,7 @@ export function TrendColumns({ data, highlightData = null, height = 260, measure
       <BarChart
         data={rows}
         margin={{ top: 28, right: 8, bottom: 4, left: 0 }}
-        barCategoryGap="28%"
+        barCategoryGap={VERTICAL_CATEGORY_INSET}
         onClick={onSelect ? (state) => {
           const index = selectedIndex(state.activeTooltipIndex)
           if (index !== null && data[index]) onSelect(data[index].period)
@@ -542,43 +693,79 @@ export function TrendColumns({ data, highlightData = null, height = 260, measure
         <CartesianGrid vertical={false} stroke={INK.grid} />
         <XAxis dataKey="label" axisLine={{ stroke: INK.axis }} {...axisProps} />
         <YAxis width={32} axisLine={false} allowDecimals={false} {...axisProps} />
-        <Tooltip content={<ChartTooltip measure={measure} />} cursor={{ fill: "rgba(11,11,11,0.04)" }} />
+        <Tooltip content={<ChartTooltip measure={measure} />} cursor={{ fill: "var(--chart-cursor)" }} />
+        {targetLine(target)}
         <Bar
           dataKey="value"
-          fill={SERIES}
+          fill={series}
           radius={RADIUS_COLUMN}
-          maxBarSize={compact ? 30 : BAR_SIZE}
-          isAnimationActive
+          isAnimationActive={animate}
           animationDuration={ANIMATION_DURATION}
           animationEasing="ease-out"
           shape={renderVerticalBar}
-        />
+        >
+          {/* A cor do mês estourado não é decoração: é a resposta da meta. A
+              forma customizada já pinta pelo `fill` que recebe, então a célula
+              basta. */}
+          {rows.map((row, index) => (
+            <Cell key={row.label ?? index} fill={isOverTarget(row.value, target) ? STATUS.critical : series} />
+          ))}
+        </Bar>
       </BarChart>
     </PowerChart>
   )
 }
 
-/** Linha total apagada e pontos/trechos do subconjunto em vermelho. */
-export function TrendLine({ data, highlightData = null, height = 260, measure, selectedPeriod = null, onSelect }: {
+/** Linha total apagada, o subconjunto na cor da aba e a reta tracejada da tendência. */
+export function TrendLine({ animationKey, data, highlightData = null, height = 260, measure, selectedPeriod = null, onSelect, target = null }: {
+  animationKey: string
   data: PeriodValue[]
   highlightData?: PeriodValue[] | null
   height?: number
   measure?: string
   selectedPeriod?: string | null
   onSelect?: (period: string) => void
+  /** Teto de RAPs no mês, desenhado como linha tracejada. */
+  target?: number | null
 }) {
-  if (!data.length) return <Empty height={height} />
+  const series = useSeriesColor()
   const highlighting = highlightData !== null
-  const rows = mergePeriodRows(data, highlightData).map((row) => ({
+  const merged = mergePeriodRows(data, highlightData)
+  const plotted = merged.map((row) => (highlighting ? row.highlightValue : row.value) as number | null)
+  // A tendência segue a série que está colorida na tela: o total do filtro, ou a
+  // parcela do barracão/colaborador escolhido enquanto o recorte estiver ativo.
+  const trend = linearTrend(plotted)
+  const visualRows = merged.map((row, index) => ({
     ...row,
-    animatedValue: highlighting ? row.highlightValue : row.value,
+    animatedValue: plotted[index],
+    trend: trend?.[index] ?? null,
   }))
+  const animate = useChartAnimation(animationKey, JSON.stringify(data), rowsSignature(visualRows))
+  const rows = useHighlightTransition(visualRows)
+  if (!data.length) return <Empty height={height} />
+
+  // Rótulo só na ponta da reta: o nome da marca é dito uma vez, não em todo mês.
+  const lastIndex = rows.length - 1
+  const renderTrendLabel = (props: { x?: string | number; y?: string | number; index?: number }) => (
+    props.index === lastIndex ? (
+      <text
+        x={Number(props.x ?? 0) + 9}
+        y={Number(props.y ?? 0)}
+        fill={INK.muted}
+        fontSize={13}
+        fontWeight={600}
+        dominantBaseline="central"
+      >
+        Tendência
+      </text>
+    ) : <text />
+  )
 
   return (
     <PowerChart height={height} selected={selectedPeriod ?? undefined} interactive={Boolean(onSelect)}>
       <LineChart
         data={rows}
-        margin={{ top: 12, right: 16, bottom: 4, left: 0 }}
+        margin={{ top: 12, right: trend ? 74 : 16, bottom: 4, left: 0 }}
         onClick={onSelect ? (state) => {
           const index = selectedIndex(state.activeTooltipIndex)
           if (index !== null && data[index]) onSelect(data[index].period)
@@ -588,6 +775,7 @@ export function TrendLine({ data, highlightData = null, height = 260, measure, s
         <XAxis dataKey="label" axisLine={{ stroke: INK.axis }} {...axisProps} />
         <YAxis width={32} axisLine={false} {...axisProps} />
         <Tooltip content={<ChartTooltip measure={measure} />} cursor={{ stroke: INK.axis }} />
+        {targetLine(target)}
         <Line
           type="monotone"
           dataKey="value"
@@ -603,18 +791,36 @@ export function TrendLine({ data, highlightData = null, height = 260, measure, s
         <Line
           type="monotone"
           dataKey="animatedValue"
-          stroke={SERIES}
+          stroke={series}
           strokeWidth={highlighting ? 3 : 2}
           strokeLinecap="round"
           strokeLinejoin="round"
           connectNulls={false}
           tooltipType="none"
-          isAnimationActive
+          isAnimationActive={animate}
           animationDuration={ANIMATION_DURATION}
           animationEasing="ease-out"
-          dot={{ r: highlighting ? 5 : 4, fill: SERIES, stroke: INK.surface, strokeWidth: 2 }}
+          dot={{ r: highlighting ? 5 : 4, fill: series, stroke: INK.surface, strokeWidth: 2 }}
           activeDot={false}
         />
+        {/* Reta reta e tracejada, sem pontos: nada nela é uma medição, é a direção
+            do período inteiro. O nome fica na ponta em vez de numa legenda - a
+            legenda encolheria a área de plotagem e o gráfico saltaria a cada
+            clique, já que as marcas visíveis mudam com o recorte. */}
+        {trend && (
+          <Line
+            dataKey="trend"
+            stroke={series}
+            strokeWidth={2}
+            strokeOpacity={0.8}
+            strokeDasharray="7 5"
+            dot={false}
+            activeDot={false}
+            tooltipType="none"
+            isAnimationActive={false}
+            label={renderTrendLabel}
+          />
+        )}
       </LineChart>
     </PowerChart>
   )
@@ -622,6 +828,7 @@ export function TrendLine({ data, highlightData = null, height = 260, measure, s
 
 /** Gates por período com cada coluna dividida visualmente entre total e seleção. */
 export function GateColumns({
+  animationKey,
   data,
   highlightData = null,
   gates,
@@ -631,6 +838,7 @@ export function GateColumns({
   selectedPeriod = null,
   onSelect,
 }: {
+  animationKey: string
   data: GateValue[]
   highlightData?: GateValue[] | null
   gates: string[]
@@ -641,7 +849,7 @@ export function GateColumns({
   onSelect?: (gate: string, period: string) => void
 }) {
   const periods = [...new Set(data.map((row) => row.label))]
-  const rows = useHighlightTransition(periods.map((label) => {
+  const mergedRows = periods.map((label) => {
     const period = data.find((row) => row.label === label)?.period ?? ""
     const entry: HighlightRow = {
       label,
@@ -654,7 +862,13 @@ export function GateColumns({
       entry.__highlights[gate] = highlightData?.find((row) => row.period === period && row.gate === gate)?.value ?? 0
     }
     return entry
-  }))
+  })
+  const animate = useChartAnimation(
+    animationKey,
+    JSON.stringify([data, gates]),
+    rowsSignature(mergedRows),
+  )
+  const rows = useHighlightTransition(mergedRows)
   if (!data.length) return <Empty height={height} />
 
   return (
@@ -662,23 +876,17 @@ export function GateColumns({
       <BarChart
         data={rows}
         margin={{ top: 28, right: 8, bottom: 4, left: 0 }}
-        barGap={2}
-        barCategoryGap="24%"
-        onClick={onSelect ? (state) => {
-          const index = selectedIndex(state.activeTooltipIndex)
-          const gate = typeof state.activeDataKey === "string" ? state.activeDataKey : null
-          const period = index === null ? null : String(rows[index]?.period ?? "")
-          if (gate && gates.includes(gate) && period) onSelect(gate, period)
-        } : undefined}
+        barGap={VERTICAL_BAR_GAP}
+        barCategoryGap={VERTICAL_CATEGORY_INSET}
       >
         <CartesianGrid vertical={false} stroke={INK.grid} />
         <XAxis dataKey="label" axisLine={{ stroke: INK.axis }} {...axisProps} />
         <YAxis width={32} axisLine={false} {...axisProps} />
-        <Tooltip content={<ChartTooltip measure={measure} />} cursor={{ fill: "rgba(11,11,11,0.04)" }} />
+        <Tooltip content={<ChartTooltip measure={measure} />} cursor={{ fill: "var(--chart-cursor)" }} />
         <Legend
           iconType="circle"
           iconSize={8}
-          wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
+          wrapperStyle={{ fontSize: 14, paddingTop: 8 }}
           formatter={(value: string) => <span style={{ color: INK.secondary }}>{value}</span>}
         />
         {gates.map((gate, index) => {
@@ -689,11 +897,24 @@ export function GateColumns({
               dataKey={gate}
               fill={color}
               radius={RADIUS_COLUMN}
-              maxBarSize={BAR_SIZE}
-              isAnimationActive
+              isAnimationActive={animate}
               animationDuration={ANIMATION_DURATION}
               animationEasing="ease-out"
               shape={renderVerticalBar}
+              // Alvo invisível da altura do gráfico, uma faixa por gate. Sem ele o
+              // clique dependeria de acertar uma coluna de 22px - e um gate zerado
+              // no mês não teria coluna nenhuma para acertar. Os outros visuais
+              // aceitam o clique em qualquer ponto da faixa do mês; aqui a faixa
+              // precisa ser por gate, que é o dado que falta ao clique do gráfico.
+              background={onSelect ? { fill: "transparent" } : undefined}
+              // O clique fica na marca, e não no gráfico: só aqui se sabe qual gate
+              // foi tocado. No clique do BarChart o Recharts entrega `activeDataKey`
+              // vazio - com tooltip por eixo, ele nem chega a ser preenchido.
+              onClick={onSelect ? (entry: unknown) => {
+                const row = (entry as { payload?: HighlightRow }).payload
+                const period = String(row?.period ?? "")
+                if (period) onSelect(gate, period)
+              } : undefined}
             />
           )
         })}
@@ -747,6 +968,7 @@ function DonutPowerSector({ props }: { props: AnimatedPieSectorProps }) {
 
 /** Rosca: a espessura colorida de cada fatia representa a porcentagem selecionada. */
 export function ShareDonut({
+  animationKey,
   data,
   highlightData = null,
   height = 260,
@@ -757,6 +979,7 @@ export function ShareDonut({
   colorMap,
   onSelect,
 }: {
+  animationKey: string
   data: LabelValue[]
   highlightData?: LabelValue[] | null
   height?: number
@@ -767,7 +990,9 @@ export function ShareDonut({
   colorMap?: Readonly<Record<string, string>>
   onSelect?: (label: string) => void
 }) {
-  const rows = useHighlightTransition(mergeLabelRows(data, highlightData))
+  const mergedRows = mergeLabelRows(data, highlightData)
+  const animate = useChartAnimation(animationKey, JSON.stringify(data), rowsSignature(mergedRows))
+  const rows = useHighlightTransition(mergedRows)
   if (!data.length) return <Empty height={height} />
 
   const total = data.reduce((sum, row) => sum + row.value, 0)
@@ -785,7 +1010,7 @@ export function ShareDonut({
         <Legend
           iconType="circle"
           iconSize={8}
-          wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
+          wrapperStyle={{ fontSize: 14, paddingTop: 8 }}
           formatter={(value: string) => <span style={{ color: INK.secondary }}>{value}</span>}
         />
         <Pie
@@ -826,13 +1051,13 @@ export function ShareDonut({
                 : `${Math.round((value / total) * 100)}%`
 
             return (
-              <text className={showValues ? "quality-donut-detail-label" : undefined} x={x} y={y} fill={INK.secondary} fontSize={11} textAnchor={x > cx ? "start" : "end"} dominantBaseline="central">
+              <text className={showValues ? "quality-donut-detail-label" : undefined} x={x} y={y} fill={INK.secondary} fontSize={13} textAnchor={x > cx ? "start" : "end"} dominantBaseline="central">
                 {text}
               </text>
             )
           }}
           labelLine={showValues ? { stroke: INK.muted, strokeWidth: 1 } : false}
-          isAnimationActive
+          isAnimationActive={animate}
           animationDuration={ANIMATION_DURATION}
           animationEasing="ease-out"
           shape={renderDonutSector}
@@ -855,7 +1080,7 @@ export function ShareDonut({
             <text x="50%" y="43%" textAnchor="middle" dominantBaseline="central" fill={INK.primary} fontSize={30} fontWeight={700}>
               {total}
             </text>
-            <text x="50%" y="53%" textAnchor="middle" dominantBaseline="central" fill={INK.secondary} fontSize={12}>
+            <text x="50%" y="53%" textAnchor="middle" dominantBaseline="central" fill={INK.secondary} fontSize={14}>
               {centerLabel}
             </text>
           </g>
@@ -867,6 +1092,7 @@ export function ShareDonut({
 
 /** Coletas e reclamações com parcelas selecionadas sobre os totais mensais. */
 export function DispatchVsComplaints({
+  animationKey,
   dispatches,
   complaints,
   highlightDispatches = null,
@@ -875,6 +1101,7 @@ export function DispatchVsComplaints({
   selectedPeriod = null,
   onSelect,
 }: {
+  animationKey: string
   dispatches: PeriodValue[]
   complaints: PeriodValue[]
   highlightDispatches?: PeriodValue[] | null
@@ -883,8 +1110,9 @@ export function DispatchVsComplaints({
   selectedPeriod?: string | null
   onSelect?: (period: string) => void
 }) {
+  const series = useSeriesColor()
   const highlighting = highlightDispatches !== null || highlightComplaints !== null
-  const rows = useHighlightTransition(dispatches.map((row) => ({
+  const mergedRows: HighlightRow[] = dispatches.map((row) => ({
     period: row.period,
     label: row.label,
     Coletas: row.value,
@@ -894,7 +1122,13 @@ export function DispatchVsComplaints({
       Coletas: highlightDispatches?.find((entry) => entry.period === row.period)?.value ?? 0,
       Reclamações: highlightComplaints?.find((entry) => entry.period === row.period)?.value ?? 0,
     },
-  })))
+  }))
+  const animate = useChartAnimation(
+    animationKey,
+    JSON.stringify([dispatches, complaints]),
+    rowsSignature(mergedRows),
+  )
+  const rows = useHighlightTransition(mergedRows)
   if (!dispatches.length) return <Empty height={height} />
 
   return (
@@ -902,8 +1136,8 @@ export function DispatchVsComplaints({
       <BarChart
         data={rows}
         margin={{ top: 28, right: 8, bottom: 4, left: 0 }}
-        barGap={2}
-        barCategoryGap="26%"
+        barGap={VERTICAL_BAR_GAP}
+        barCategoryGap={VERTICAL_CATEGORY_INSET}
         onClick={onSelect ? (state) => {
           const index = selectedIndex(state.activeTooltipIndex)
           if (index !== null && rows[index]) onSelect(String(rows[index].period))
@@ -912,29 +1146,29 @@ export function DispatchVsComplaints({
         <CartesianGrid vertical={false} stroke={INK.grid} />
         <XAxis dataKey="label" axisLine={{ stroke: INK.axis }} {...axisProps} />
         <YAxis width={32} axisLine={false} {...axisProps} />
-        <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(11,11,11,0.04)" }} />
+        <Tooltip content={<ChartTooltip />} cursor={{ fill: "var(--chart-cursor)" }} />
         <Legend
           iconType="circle"
           iconSize={8}
-          wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
+          wrapperStyle={{ fontSize: 14, paddingTop: 8 }}
           formatter={(value: string) => <span style={{ color: INK.secondary }}>{value}</span>}
         />
         <Bar
           dataKey="Coletas"
-          fill={CATEGORICAL[1]}
+          fill={series}
           radius={RADIUS_COLUMN}
-          maxBarSize={BAR_SIZE}
-          isAnimationActive
+          isAnimationActive={animate}
           animationDuration={ANIMATION_DURATION}
           animationEasing="ease-out"
           shape={renderVerticalBar}
         />
+        {/* A reclamação segue no vermelho da marca em qualquer aba: aqui a cor
+            está dizendo que o registro é ruim, e não de que seção ele veio. */}
         <Bar
           dataKey="Reclamações"
-          fill={CATEGORICAL[0]}
+          fill={SERIES}
           radius={RADIUS_COLUMN}
-          maxBarSize={BAR_SIZE}
-          isAnimationActive
+          isAnimationActive={animate}
           animationDuration={ANIMATION_DURATION}
           animationEasing="ease-out"
           shape={renderVerticalBar}

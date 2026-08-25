@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\Permissions;
+use App\Support\UserPreferences;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -10,6 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 #[Fillable([
     'name',
@@ -18,6 +20,8 @@ use Illuminate\Support\Facades\DB;
     'job_title',
     'sector',
     'profile_photo',
+    'profile_photo_source',
+    'profile_photo_crop',
     'password_hash',
     'role',
     'is_primary_admin',
@@ -44,6 +48,7 @@ class User extends Authenticatable
     {
         return [
             'password_hash' => 'hashed',
+            'profile_photo_crop' => 'array',
             'is_primary_admin' => 'boolean',
             'is_active' => 'boolean',
             'must_change_password' => 'boolean',
@@ -63,17 +68,54 @@ class User extends Authenticatable
             ->pluck('permission')
             ->map(static fn (mixed $permission): string => (string) $permission)
             ->intersect(Permissions::keys())
+            // quality.edit nunca é atribuível: mesmo que um banco legado
+            // contenha a chave, somente o cargo (ou role admin) pode concedê-la.
+            ->reject(static fn (string $permission): bool => $permission === 'quality.edit')
             ->values()
             ->all();
 
+        $hasQualityAccess = array_filter(
+            $permissions,
+            static fn (string $permission): bool => str_starts_with($permission, 'quality.')
+        ) !== [];
+        if ($hasQualityAccess && $this->hasQualityEditSeniority()) {
+            $permissions[] = 'quality.edit';
+        }
+
         if (array_intersect(
-            ['quality.manage', 'quality.create_rap', 'quality.create_dispatch', 'quality.import'],
+            [
+                'quality.manage', 'quality.create_rap', 'quality.create_dispatch',
+                'quality.create_complaint', 'quality.import', 'quality.edit',
+            ],
             $permissions
         ) !== []) {
             $permissions[] = 'quality.view';
         }
 
         return array_values(array_unique($permissions));
+    }
+
+    /**
+     * A edição dos registros é derivada do cargo e não pode ser concedida pela
+     * tela de permissões. O prefixo permite cargos descritivos, como
+     * "Supervisor de Qualidade", sem depender de maiúsculas ou acentos.
+     */
+    private function hasQualityEditSeniority(): bool
+    {
+        $title = Str::upper(Str::ascii(trim((string) $this->job_title)));
+        $title = trim((string) preg_replace('/[^A-Z0-9]+/', ' ', $title));
+
+        foreach ([
+            'SUPERVISOR', 'SUPERVISORA', 'COORDENADOR', 'COORDENADORA', 'GERENTE',
+            'SUPERINTENDENTE', 'DIRETOR', 'DIRETORA', 'PRESIDENTE',
+            'VICE PRESIDENTE', 'ADMINISTRADOR', 'ADMINISTRADORA', 'HEAD', 'CEO',
+        ] as $seniority) {
+            if ($title === $seniority || str_starts_with($title, $seniority.' ')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function hasPermission(string $permission): bool
@@ -97,7 +139,14 @@ class User extends Authenticatable
             'is_active' => (bool) $this->is_active,
             'must_change_password' => (bool) $this->must_change_password,
             'profile_photo' => $this->profile_photo ? (string) $this->profile_photo : null,
+            // O original e o retângulo escolhido só interessam a quem vai abrir o
+            // recortador de novo - as telas que mostram o avatar param no de cima.
+            'profile_photo_source' => $this->profile_photo_source ? (string) $this->profile_photo_source : null,
+            'profile_photo_crop' => is_array($this->profile_photo_crop) ? $this->profile_photo_crop : null,
             'permissions' => $this->permissionKeys(),
+            // Viajam junto com a sessão de propósito: é o que deixa o tema
+            // salvo valer já no primeiro paint, sem uma segunda requisição.
+            'preferences' => UserPreferences::forUser((int) $this->getKey()),
         ];
     }
 }

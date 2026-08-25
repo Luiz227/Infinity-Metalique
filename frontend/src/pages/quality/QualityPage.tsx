@@ -1,13 +1,23 @@
-import { useCallback, useEffect, useRef, useState } from "react"
-import { ClipboardList, FileUp, LoaderCircle, MousePointerClick, PackagePlus } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { ClipboardCheck, ClipboardList, FileUp, LoaderCircle, MessageSquarePlus, PackagePlus, Settings } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { getJson, postJson } from "@/lib/api"
-import { FilterBar } from "@/pages/quality/FilterBar"
+import { QUALITY_NAVIGATION } from "@/lib/navigation"
+import { currentPreferences } from "@/lib/preferences"
+import { useQualityLiveRefresh } from "@/lib/useQualityLiveRefresh"
+import { ActionPlanDialog } from "@/pages/quality/ActionPlanDialog"
+import { SeriesColorProvider } from "@/pages/quality/charts/SeriesColor"
+import { SECTION_SERIES, SERIES } from "@/pages/quality/charts/tokens"
+import { activeFilters, FilterBar } from "@/pages/quality/FilterBar"
+import { ActionPlanForm } from "@/pages/quality/forms/ActionPlanForm"
+import { ComplaintForm } from "@/pages/quality/forms/ComplaintForm"
 import { DispatchForm } from "@/pages/quality/forms/DispatchForm"
 import { RapForm } from "@/pages/quality/forms/RapForm"
 import { QualityImportDialog } from "@/pages/quality/QualityImportDialog"
+import { QualityPrintProvider } from "@/pages/quality/print/PrintContext"
 import { PrintSheet } from "@/pages/quality/print/PrintSheet"
+import { ActionPlansSection } from "@/pages/quality/sections/ActionPlansSection"
 import { DispatchSection } from "@/pages/quality/sections/DispatchSection"
 import { ProductsSection } from "@/pages/quality/sections/ProductsSection"
 import { RapsSection } from "@/pages/quality/sections/RapsSection"
@@ -16,6 +26,10 @@ import { SatisfactionSection } from "@/pages/quality/sections/SatisfactionSectio
 import { TeamSection } from "@/pages/quality/sections/TeamSection"
 import { UnitsSection } from "@/pages/quality/sections/UnitsSection"
 import {
+  type ActionPlanDetail,
+  type ActionPlans,
+  type ComplaintDetail,
+  type ComplaintRow,
   type DispatchDetail,
   type DispatchRow,
   type Paginated,
@@ -30,18 +44,30 @@ import {
 } from "@/pages/quality/types"
 import type { PermissionKey } from "@/types"
 
-const TABS = [
-  { id: "raps", label: "RAPs", permission: "quality.raps" },
-  { id: "unidades", label: "Unidades", permission: "quality.units" },
-  { id: "produtos", label: "Produtos", permission: "quality.products" },
-  { id: "coletas", label: "Produtos Coletados", permission: "quality.dispatches" },
-  { id: "colaboradores", label: "Colaboradores", permission: "quality.employees" },
-  { id: "qualidade", label: "Qualidade", permission: "quality.satisfaction" },
-  { id: "registros", label: "Registros", permission: "quality.records" },
-] as const
+/*
+ * A aba de planos usa a permissão de quem lança a reclamação: o plano é a
+ * tratativa dela, e quem registra é quem trata. Sem chave nova de permissão.
+ *
+ * A lista mora em lib/navigation.ts porque o cabeçalho, a busca e as
+ * configurações precisam exatamente dela - e uma cópia por tela sai de
+ * sincronia na primeira aba nova.
+ */
+const TABS = QUALITY_NAVIGATION
+
+/**
+ * "Últimas coletas", na aba Produtos Coletados, é uma lista fixa das mais
+ * recentes - ela não acompanha o seletor de linhas da aba Registros. É por
+ * casarem neste valor que as duas podem compartilhar uma requisição só.
+ */
+const LATEST_DISPATCHES = 25
 
 type TabId = (typeof TABS)[number]["id"]
-type PrintTarget = { kind: "report" | "dispatch"; id: number }
+type PrintTarget = { kind: "report" | "dispatch" | "complaint" | "plan"; id: number }
+type EditTarget =
+  | { kind: "report"; record: ReportDetail }
+  | { kind: "dispatch"; record: DispatchDetail }
+  | { kind: "complaint"; record: ComplaintDetail }
+type RevisionPayload = { revision: string }
 
 /**
  * View do administrador da qualidade: os indicadores do Power BI lidos do MySQL,
@@ -50,40 +76,69 @@ type PrintTarget = { kind: "report" | "dispatch"; id: number }
  *
  * Devolve só o conteúdo do painel - a moldura e o cabeçalho vêm do AppShell.
  */
-export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canImport, canDelete, permissions, tabsInHeader }: {
+export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canCreateComplaint, canImport, canDelete, canEdit, permissions, tabsInHeader }: {
   csrfToken: string
   canCreateRap: boolean
   canCreateDispatch: boolean
+  canCreateComplaint: boolean
   canImport: boolean
   canDelete: boolean
+  canEdit: boolean
   permissions: PermissionKey[]
   tabsInHeader: boolean
 }) {
   const [filters, setFilters] = useState<QualityFilters>(emptyFilters)
-  const [tab, setTab] = useState<TabId>("raps")
+  // A aba inicial é a preferida da conta; o efeito abaixo corrige se ela não
+  // estiver entre as visíveis.
+  const [tab, setTab] = useState<TabId>(() => currentPreferences().qualityTab as TabId)
   const [options, setOptions] = useState<QualityOptions | null>(null)
   const [dashboard, setDashboard] = useState<QualityDashboard | null>(null)
   const [highlightDashboard, setHighlightDashboard] = useState<QualityDashboard | null>(null)
   const [chartSelection, setChartSelection] = useState<QualityChartSelection | null>(null)
   const [chartEpoch, setChartEpoch] = useState(0)
+  const [dataEpoch, setDataEpoch] = useState(0)
   const [isHighlightLoading, setIsHighlightLoading] = useState(false)
   const [reports, setReports] = useState<Paginated<ReportRow> | null>(null)
   const [dispatches, setDispatches] = useState<Paginated<DispatchRow> | null>(null)
   const [recordDispatches, setRecordDispatches] = useState<Paginated<DispatchRow> | null>(null)
+  const [recordComplaints, setRecordComplaints] = useState<Paginated<ComplaintRow> | null>(null)
+  const [actionPlans, setActionPlans] = useState<ActionPlans | null>(null)
   const [reportsPage, setReportsPage] = useState(1)
   const [dispatchesPage, setDispatchesPage] = useState(1)
+  const [complaintsPage, setComplaintsPage] = useState(1)
+  const [plansPage, setPlansPage] = useState(1)
+  const [perPage, setPerPage] = useState(LATEST_DISPATCHES)
   const [isFetching, setIsFetching] = useState(true)
   const [error, setError] = useState("")
   const [notice, setNotice] = useState("")
-  const [openForm, setOpenForm] = useState<"rap" | "dispatch" | null>(null)
+  const [openForm, setOpenForm] = useState<"rap" | "dispatch" | "complaint" | "plan" | null>(null)
+  // A reclamação que o atalho da tabela já traz escolhida para o plano novo.
+  const [planTarget, setPlanTarget] = useState<ComplaintRow | null>(null)
+  const [openPlanId, setOpenPlanId] = useState<number | null>(null)
   const [isImportOpen, setIsImportOpen] = useState(false)
   const [printTarget, setPrintTarget] = useState<PrintTarget | null>(null)
   const [printReport, setPrintReport] = useState<ReportDetail | null>(null)
   const [printDispatch, setPrintDispatch] = useState<DispatchDetail | null>(null)
+  const [printComplaint, setPrintComplaint] = useState<ComplaintDetail | null>(null)
+  const [printPlan, setPrintPlan] = useState<ActionPlanDetail | null>(null)
+  const [editTarget, setEditTarget] = useState<EditTarget | null>(null)
   const loadController = useRef<AbortController | null>(null)
+  const appliedRevisionRef = useRef<string | null>(null)
   const visibleTabs = TABS.filter((item) => permissions.includes(item.permission))
   const hasVisibleTab = visibleTabs.some((item) => item.id === tab)
   const isActionOnly = visibleTabs.length === 0 && (canCreateRap || canCreateDispatch)
+  const showComplaintButton = canCreateComplaint && tab === "qualidade" && hasVisibleTab
+  const showPlanButton = canCreateComplaint && tab === "planos" && hasVisibleTab
+
+  // De onde o gráfico veio e sob qual recorte ele está: é o que a folha
+  // impressa escreve no cabeçalho, e nada disso o cartão sabe sozinho.
+  const printContext = useMemo(() => ({
+    section: TABS.find((item) => item.id === tab)?.label ?? null,
+    context: [
+      ...activeFilters(filters, options).map((filter) => filter.label),
+      ...(chartSelection ? [`Recorte: ${chartSelection.label}`] : []),
+    ],
+  }), [chartSelection, filters, options, tab])
 
   useEffect(() => {
     if (!visibleTabs.some((item) => item.id === tab)) {
@@ -155,27 +210,42 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canImp
     setError("")
     const query = filtersToQuery(filters)
     const pageSeparator = query ? "&" : "?"
+    const requestInit: RequestInit = { signal: controller.signal, cache: "no-store" }
+    const listUrl = (endpoint: string, page: number, rows: number) =>
+      `/backend/api/quality/${endpoint}.php${query}${pageSeparator}page=${page}&perPage=${rows}`
 
     try {
-      const latestDispatchesRequest = getJson<Paginated<DispatchRow>>(
-        `/backend/api/quality/dispatches.php${query}${pageSeparator}page=1`,
-        { signal: controller.signal },
+      const baseline = await getJson<RevisionPayload>(
+        "/backend/api/quality/revision.php",
+        requestInit,
       )
-      const recordDispatchesRequest = dispatchesPage === 1
+      const latestDispatchesRequest = getJson<Paginated<DispatchRow>>(
+        listUrl("dispatches", 1, LATEST_DISPATCHES),
+        requestInit,
+      )
+      // A aba Registros só reaproveita a busca das "Últimas coletas" quando
+      // pede exatamente a mesma fatia.
+      const recordDispatchesRequest = dispatchesPage === 1 && perPage === LATEST_DISPATCHES
         ? latestDispatchesRequest
         : getJson<Paginated<DispatchRow>>(
-            `/backend/api/quality/dispatches.php${query}${pageSeparator}page=${dispatchesPage}`,
-            { signal: controller.signal },
+            listUrl("dispatches", dispatchesPage, perPage),
+            requestInit,
           )
 
-      const [dashboardData, reportsData, dispatchesData, recordDispatchesData] = await Promise.all([
-        getJson<QualityDashboard>(`/backend/api/quality/dashboard.php${query}`, { signal: controller.signal }),
-        getJson<Paginated<ReportRow>>(
-          `/backend/api/quality/reports.php${query}${pageSeparator}page=${reportsPage}`,
-          { signal: controller.signal },
-        ),
+      const [
+        dashboardData,
+        reportsData,
+        dispatchesData,
+        recordDispatchesData,
+        recordComplaintsData,
+        actionPlansData,
+      ] = await Promise.all([
+        getJson<QualityDashboard>(`/backend/api/quality/dashboard.php${query}`, requestInit),
+        getJson<Paginated<ReportRow>>(listUrl("reports", reportsPage, perPage), requestInit),
         latestDispatchesRequest,
         recordDispatchesRequest,
+        getJson<Paginated<ComplaintRow>>(listUrl("complaints", complaintsPage, perPage), requestInit),
+        getJson<ActionPlans>(listUrl("action-plans", plansPage, perPage), requestInit),
       ])
 
       if (controller.signal.aborted || loadController.current !== controller) return
@@ -184,6 +254,10 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canImp
       setReports(reportsData)
       setDispatches(dispatchesData)
       setRecordDispatches(recordDispatchesData)
+      setRecordComplaints(recordComplaintsData)
+      setActionPlans(actionPlansData)
+      appliedRevisionRef.current = baseline.revision
+      setDataEpoch((current) => current + 1)
     } catch (requestError) {
       if (controller.signal.aborted) return
       setError(requestError instanceof Error ? requestError.message : "Erro inesperado.")
@@ -193,7 +267,7 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canImp
         setIsFetching(false)
       }
     }
-  }, [dispatchesPage, filters, reportsPage])
+  }, [complaintsPage, dispatchesPage, filters, perPage, plansPage, reportsPage])
 
   useEffect(() => {
     void load()
@@ -202,6 +276,34 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canImp
       loadController.current = null
     }
   }, [load])
+
+  const refreshLiveData = useCallback(() => {
+    if (loadController.current !== null) return
+
+    void load()
+    void getJson<QualityOptions>("/backend/api/quality/options.php", { cache: "no-store" })
+      .then(setOptions)
+      .catch(() => undefined)
+  }, [load])
+
+  useQualityLiveRefresh({
+    endpoint: "/backend/api/quality/revision.php",
+    enabled: visibleTabs.length > 0,
+    appliedRevisionRef,
+    onRefresh: refreshLiveData,
+  })
+
+  // O painel de catálogos mora na central de configurações, do lado de fora
+  // desta tela. Mexer nele muda o que os filtros e os formulários oferecem, e o
+  // poller de revisão só chegaria aqui alguns segundos depois.
+  useEffect(() => {
+    const applySavedSettings = (event: Event) => {
+      setNotice((event as CustomEvent<string>).detail || "Configurações da Qualidade salvas.")
+      refreshLiveData()
+    }
+    window.addEventListener("metalique:quality-settings-saved", applySavedSettings)
+    return () => window.removeEventListener("metalique:quality-settings-saved", applySavedSettings)
+  }, [refreshLiveData])
 
   // O destaque anterior continua na tela enquanto o novo carrega: assim o
   // preenchimento vai direto da parcela antiga para a nova, numa animação só.
@@ -219,7 +321,7 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canImp
 
     getJson<QualityDashboard>(
       `/backend/api/quality/dashboard.php${filtersToQuery(selectedFilters)}`,
-      { signal: controller.signal },
+      { signal: controller.signal, cache: "no-store" },
     )
       .then((data) => {
         if (controller.signal.aborted) return
@@ -234,7 +336,7 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canImp
       })
 
     return () => controller.abort()
-  }, [chartSelection, filters])
+  }, [chartSelection, dataEpoch, filters])
 
   // Trocar o filtro volta a listagem para a primeira página.
   const changeFilters = (next: QualityFilters) => {
@@ -243,6 +345,18 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canImp
     setHighlightDashboard(null)
     setReportsPage(1)
     setDispatchesPage(1)
+    setComplaintsPage(1)
+    setPlansPage(1)
+  }
+
+  // Trocar o tamanho da página redesenha as fatias: a página 6 de 25 em 25 nem
+  // existe de 100 em 100. Todas voltam para a primeira.
+  const changePerPage = (rows: number) => {
+    setPerPage(rows)
+    setReportsPage(1)
+    setDispatchesPage(1)
+    setComplaintsPage(1)
+    setPlansPage(1)
   }
 
   const selectChart = (next: QualityChartSelection) => {
@@ -309,29 +423,97 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canImp
 
   useEffect(() => {
     if (!printTarget) return
+    const controller = new AbortController()
 
     setPrintReport(null)
     setPrintDispatch(null)
+    setPrintComplaint(null)
+    setPrintPlan(null)
 
-    const url = printTarget.kind === "report"
-      ? `/backend/api/quality/report.php?id=${printTarget.id}`
-      : `/backend/api/quality/dispatch.php?id=${printTarget.id}`
+    const endpoints = {
+      report: "report", dispatch: "dispatch", complaint: "complaint", plan: "action-plan",
+    } as const
+    const url = `/backend/api/quality/${endpoints[printTarget.kind]}.php?id=${printTarget.id}`
 
-    getJson<{ report?: ReportDetail; dispatch?: DispatchDetail }>(url)
+    getJson<{
+      report?: ReportDetail
+      dispatch?: DispatchDetail
+      complaint?: ComplaintDetail
+      plan?: ActionPlanDetail
+    }>(url, { signal: controller.signal, cache: "no-store" })
       .then((payload) => {
+        if (controller.signal.aborted) return
         if (payload.report) setPrintReport(payload.report)
         if (payload.dispatch) setPrintDispatch(payload.dispatch)
+        if (payload.complaint) setPrintComplaint(payload.complaint)
+        if (payload.plan) setPrintPlan(payload.plan)
       })
       .catch(() => {
+        if (controller.signal.aborted) return
         setPrintTarget(null)
         setError("Não foi possível carregar o documento para impressão.")
       })
+
+    return () => controller.abort()
   }, [printTarget])
 
   const afterCreate = (message: string) => {
     setOpenForm(null)
+    setPlanTarget(null)
     setNotice(message)
     void load()
+  }
+
+  const closePrint = () => {
+    setPrintTarget(null)
+    setPrintReport(null)
+    setPrintDispatch(null)
+    setPrintComplaint(null)
+    setPrintPlan(null)
+  }
+
+  const beginEdit = () => {
+    if (!canEdit) return
+
+    const target: EditTarget | null = printTarget?.kind === "report" && printReport?.id === printTarget.id
+      ? { kind: "report", record: printReport }
+      : printTarget?.kind === "dispatch" && printDispatch?.id === printTarget.id
+        ? { kind: "dispatch", record: printDispatch }
+        : printTarget?.kind === "complaint" && printComplaint?.id === printTarget.id
+          ? { kind: "complaint", record: printComplaint }
+          : null
+
+    if (!target) return
+    closePrint()
+    setEditTarget(target)
+  }
+
+  const cancelEdit = (target: EditTarget) => {
+    setEditTarget(null)
+    setPrintTarget({ kind: target.kind, id: target.record.id })
+  }
+
+  const afterEdit = (target: EditTarget, code: string, message?: string) => {
+    const { kind } = target
+    const { id } = target.record
+    setEditTarget(null)
+    setNotice(message || `${code} atualizado com sucesso.`)
+    void load().then(() => setPrintTarget({ kind, id }))
+  }
+
+  /**
+   * O atalho da coluna "Plano de ação": com plano, abre o plano; sem plano, abre
+   * o formulário com a reclamação já escolhida.
+   */
+  const openPlanFor = (complaint: ComplaintRow) => {
+    setError("")
+    setNotice("")
+    if (complaint.plan_id) {
+      setOpenPlanId(complaint.plan_id)
+      return
+    }
+    setPlanTarget(complaint)
+    setOpenForm("plan")
   }
 
   const deleteRecord = async (kind: PrintTarget["kind"], id: number) => {
@@ -339,18 +521,30 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canImp
     setNotice("")
 
     try {
-      const endpoint = kind === "report"
-        ? "/backend/api/quality/report-delete.php"
-        : "/backend/api/quality/dispatch-delete.php"
-      const payload = await postJson<{ message: string }>(endpoint, { id, csrfToken })
+      const endpoints = {
+        report: "report-delete",
+        dispatch: "dispatch-delete",
+        complaint: "complaint-delete",
+        plan: "action-plan-delete",
+      } as const
+      const payload = await postJson<{ message: string }>(
+        `/backend/api/quality/${endpoints[kind]}.php`,
+        { id, csrfToken },
+      )
+      if (kind === "plan") setOpenPlanId(null)
 
-      const shouldGoBack = kind === "report"
-        ? reportsPage > 1 && reports?.items.length === 1
-        : dispatchesPage > 1 && recordDispatches?.items.length === 1
+      // Excluir o registro que sobrava na última página deixaria a listagem
+      // vazia; nesse caso a aba Registros volta uma página em vez de recarregar.
+      const pages = {
+        report: [reportsPage, reports, setReportsPage],
+        dispatch: [dispatchesPage, recordDispatches, setDispatchesPage],
+        complaint: [complaintsPage, recordComplaints, setComplaintsPage],
+        plan: [plansPage, actionPlans, setPlansPage],
+      } as const
+      const [currentPage, records, setPage] = pages[kind]
 
-      if (shouldGoBack) {
-        if (kind === "report") setReportsPage((current) => Math.max(1, current - 1))
-        else setDispatchesPage((current) => Math.max(1, current - 1))
+      if (currentPage > 1 && records?.items.length === 1) {
+        setPage((current) => Math.max(1, current - 1))
       } else {
         await load()
       }
@@ -367,17 +561,54 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canImp
     <>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-[clamp(30px,2.4vw,43px)] font-medium leading-none">Qualidade</h1>
-          <p className="mt-2 text-sm text-[#52514e]">
+          {/* A engrenagem se ajusta ao título e só aparece no hover dele: é
+              ajuste de configuração, não uma ação do dia a dia, e não deve
+              disputar atenção com os botões de lançamento. Ela reserva o próprio
+              espaço mesmo apagada, então o título não salta quando ela surge. */}
+          <div className="group/heading flex items-center gap-1">
+            <h1 className="text-[clamp(30px,2.4vw,43px)] font-medium leading-none">Qualidade</h1>
+            {canDelete && (
+              <button
+                type="button"
+                aria-label="Configurações da qualidade"
+                aria-haspopup="dialog"
+                title="Configurações da qualidade"
+                className="grid size-8 place-items-center rounded-full text-ink-muted opacity-0 transition-[opacity,color] duration-300 ease-out hover:text-ink focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-metalique/25 group-hover/heading:opacity-100"
+                onClick={() => window.dispatchEvent(new CustomEvent("metalique:open-settings", { detail: "qualidade" }))}
+              >
+                <Settings className="size-[18px]" />
+              </button>
+            )}
+          </div>
+          <p className="mt-2 text-sm text-ink-soft">
             Apontamentos, expedição e satisfação do cliente - administração do setor.
           </p>
         </div>
 
-        {(visibleTabs.length > 0 || canImport) && (canCreateRap || canCreateDispatch || canImport) && (
+        {(visibleTabs.length > 0 || canImport) && (canCreateRap || canCreateDispatch || canImport || showComplaintButton || showPlanButton) && (
           <div className="flex flex-wrap gap-2">
             {canImport && (
               <Button type="button" variant="outline" className="rounded-full" onClick={() => setIsImportOpen(true)}>
                 <FileUp /> Importar planilha
+              </Button>
+            )}
+            {/* A reclamação só existe na aba Qualidade, então o botão acompanha
+                a aba em vez de ficar pendurado no topo das outras seis. */}
+            {showComplaintButton && (
+              <Button type="button" variant="outline" className="rounded-full" onClick={() => setOpenForm("complaint")} disabled={!options}>
+                <MessageSquarePlus /> Registrar satisfação
+              </Button>
+            )}
+            {/* Mesma regra do botão acima: a abertura do plano acompanha a aba
+                onde ele é tratado, em vez de ficar pendurada nas outras sete. */}
+            {showPlanButton && (
+              <Button
+                type="button"
+                className="rounded-full"
+                onClick={() => { setPlanTarget(null); setOpenForm("plan") }}
+                disabled={!options}
+              >
+                <ClipboardCheck /> Abrir plano de ação
               </Button>
             )}
             {canCreateDispatch && (
@@ -421,7 +652,7 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canImp
             <button
               key={item.id}
               type="button"
-              className={`rounded-full px-4 py-2 text-sm transition-colors ${tab === item.id ? "bg-[#db0f0f] text-white" : "bg-white text-[#52514e] hover:bg-neutral-50"}`}
+              className={`rounded-full px-4 py-2 text-sm transition-colors ${tab === item.id ? "bg-metalique text-white" : "border border-hairline bg-surface text-ink-soft hover:bg-neutral-50"}`}
               aria-current={tab === item.id ? "page" : undefined}
               onClick={() => {
                 setTab(item.id)
@@ -435,23 +666,9 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canImp
         </nav>
       )}
 
-      {visibleTabs.length > 0 && (
-        <p className="mt-3 flex items-center gap-1.5 text-xs text-[#52514e]">
-          <MousePointerClick className="size-3.5" aria-hidden="true" />
-          Clique em uma barra, ponto ou fatia para comparar o subconjunto com os totais; clique novamente para desfazer.
-        </p>
-      )}
-
-      {visibleTabs.length > 0 && <div className="relative mt-3 pb-2">
-        {/* Sem piscar de esqueleto: a leitura anterior fica esmaecida durante o refetch. */}
-        {isFetching && dashboard && (
-          <div className="pointer-events-none absolute right-0 top-0 z-10 flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs text-[#52514e] shadow">
-            <LoaderCircle className="size-3.5 animate-spin" /> atualizando
-          </div>
-        )}
-
+      {visibleTabs.length > 0 && <div className="mt-3 pb-2">
         {!dashboard && isFetching && (
-          <div className="grid h-64 place-items-center text-[#898781]">
+          <div className="grid h-64 place-items-center text-ink-muted">
             <LoaderCircle className="size-7 animate-spin" aria-label="Carregando indicadores" />
           </div>
         )}
@@ -460,87 +677,118 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canImp
             intervalo é o retorno imediato do clique. */}
         {dashboard && hasVisibleTab && (
           <div key={chartEpoch} className={`transition-opacity ${isFetching ? "opacity-60" : isHighlightLoading ? "opacity-80" : ""}`}>
-            {tab === "raps" && (
-              <RapsSection
-                data={dashboard}
-                highlight={highlightDashboard}
-                selection={chartSelection}
-                options={options}
-                onSelectPeriod={selectPeriod}
-                onSelectProblemType={(value) => selectText("problemType", value)}
-                onSelectCode={selectCode}
-              />
-            )}
-            {tab === "unidades" && (
-              <UnitsSection
-                data={dashboard}
-                highlight={highlightDashboard}
-                selection={chartSelection}
-                onSelectShed={(value) => selectText("shed", value)}
-                onSelectPeriod={selectPeriod}
-                onSelectGatePeriod={selectGatePeriod}
-                onSelectProblemType={(value) => selectText("problemType", value)}
-              />
-            )}
-            {tab === "produtos" && (
-              <ProductsSection
-                data={dashboard}
-                highlight={highlightDashboard}
-                selection={chartSelection}
-                options={options}
-                onSelectModel={(value) => selectText("model", value)}
-                onSelectMachineType={selectMachineType}
-              />
-            )}
-            {tab === "coletas" && (
-              <DispatchSection
-                data={dashboard}
-                highlight={highlightDashboard}
-                selection={chartSelection}
-                dispatches={dispatches}
-                options={options}
-                canDelete={canDelete}
-                onPrint={(id) => setPrintTarget({ kind: "dispatch", id })}
-                onDelete={deleteRecord}
-                onSelectPeriod={selectPeriod}
-                onSelectMachineType={selectMachineType}
-                onSelectModel={(value) => selectText("model", value)}
-              />
-            )}
-            {tab === "colaboradores" && (
-              <TeamSection
-                data={dashboard}
-                highlight={highlightDashboard}
-                selection={chartSelection}
-                options={options}
-                employeeId={(chartSelection?.filters.employeeId as number | undefined) ?? null}
-                onSelectEmployee={selectEmployee}
-                onSelectCode={selectCode}
-                onSelectPeriod={selectPeriod}
-              />
-            )}
-            {tab === "qualidade" && (
-              <SatisfactionSection
-                data={dashboard}
-                highlight={highlightDashboard}
-                selection={chartSelection}
-                onSelectPeriod={selectPeriod}
-              />
-            )}
-            {tab === "registros" && (
-              <ReportsSection
-                reports={reports}
-                dispatches={recordDispatches}
-                reportsPage={reportsPage}
-                dispatchesPage={dispatchesPage}
-                canDelete={canDelete}
-                onReportsPageChange={setReportsPage}
-                onDispatchesPageChange={setDispatchesPage}
-                onPrint={(id) => setPrintTarget({ kind: "report", id })}
-                onPrintDispatch={(id) => setPrintTarget({ kind: "dispatch", id })}
-                onDelete={deleteRecord}
-              />
-            )}
+            {/* Cada aba pinta as séries de magnitude com a própria cor. */}
+            <SeriesColorProvider color={SECTION_SERIES[tab] ?? SERIES}>
+              <QualityPrintProvider value={printContext}>
+                {tab === "raps" && (
+                  <RapsSection
+                    data={dashboard}
+                    highlight={highlightDashboard}
+                    selection={chartSelection}
+                    options={options}
+                    target={options?.targets.rapsPerMonth ?? null}
+                    onSelectPeriod={selectPeriod}
+                    onSelectProblemType={(value) => selectText("problemType", value)}
+                    onSelectCode={selectCode}
+                  />
+                )}
+                {tab === "unidades" && (
+                  <UnitsSection
+                    data={dashboard}
+                    highlight={highlightDashboard}
+                    selection={chartSelection}
+                    target={options?.targets.rapsPerMonth ?? null}
+                    onSelectShed={(value) => selectText("shed", value)}
+                    onSelectPeriod={selectPeriod}
+                    onSelectGatePeriod={selectGatePeriod}
+                    onSelectProblemType={(value) => selectText("problemType", value)}
+                  />
+                )}
+                {tab === "produtos" && (
+                  <ProductsSection
+                    data={dashboard}
+                    highlight={highlightDashboard}
+                    selection={chartSelection}
+                    options={options}
+                    onSelectModel={(value) => selectText("model", value)}
+                    onSelectMachineType={selectMachineType}
+                  />
+                )}
+                {tab === "coletas" && (
+                  <DispatchSection
+                    data={dashboard}
+                    highlight={highlightDashboard}
+                    selection={chartSelection}
+                    dispatches={dispatches}
+                    options={options}
+                    canDelete={canDelete}
+                    onPrint={(id) => setPrintTarget({ kind: "dispatch", id })}
+                    onDelete={deleteRecord}
+                    onSelectPeriod={selectPeriod}
+                    onSelectMachineType={selectMachineType}
+                    onSelectModel={(value) => selectText("model", value)}
+                  />
+                )}
+                {tab === "colaboradores" && (
+                  <TeamSection
+                    data={dashboard}
+                    highlight={highlightDashboard}
+                    selection={chartSelection}
+                    options={options}
+                    employeeId={(chartSelection?.filters.employeeId as number | undefined) ?? null}
+                    onSelectEmployee={selectEmployee}
+                    onSelectCode={selectCode}
+                    onSelectPeriod={selectPeriod}
+                  />
+                )}
+                {tab === "qualidade" && (
+                  <SatisfactionSection
+                    data={dashboard}
+                    highlight={highlightDashboard}
+                    selection={chartSelection}
+                    canDelete={canDelete}
+                    onPrint={(id) => setPrintTarget({ kind: "complaint", id })}
+                    onOpenPlan={canCreateComplaint ? openPlanFor : null}
+                    onDelete={deleteRecord}
+                    onSelectPeriod={selectPeriod}
+                  />
+                )}
+                {tab === "planos" && (
+                  <ActionPlansSection
+                    plans={actionPlans}
+                    page={plansPage}
+                    perPage={perPage}
+                    canDelete={canDelete}
+                    onPageChange={setPlansPage}
+                    onPerPageChange={changePerPage}
+                    onOpen={setOpenPlanId}
+                    onDelete={deleteRecord}
+                  />
+                )}
+                {tab === "registros" && (
+                  <ReportsSection
+                    reports={reports}
+                    dispatches={recordDispatches}
+                    complaints={recordComplaints}
+                    reportsPage={reportsPage}
+                    dispatchesPage={dispatchesPage}
+                    complaintsPage={complaintsPage}
+                    perPage={perPage}
+                    canDelete={canDelete}
+                    permissions={permissions}
+                    onReportsPageChange={setReportsPage}
+                    onDispatchesPageChange={setDispatchesPage}
+                    onComplaintsPageChange={setComplaintsPage}
+                    onPerPageChange={changePerPage}
+                    onPrint={(id) => setPrintTarget({ kind: "report", id })}
+                    onPrintDispatch={(id) => setPrintTarget({ kind: "dispatch", id })}
+                    onPrintComplaint={(id) => setPrintTarget({ kind: "complaint", id })}
+                    onOpenPlan={canCreateComplaint ? openPlanFor : null}
+                    onDelete={deleteRecord}
+                  />
+                )}
+              </QualityPrintProvider>
+            </SeriesColorProvider>
           </div>
         )}
       </div>}
@@ -565,6 +813,66 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canImp
         />
       )}
 
+      {canCreateComplaint && openForm === "complaint" && options && (
+        <ComplaintForm
+          csrfToken={csrfToken}
+          options={options}
+          onClose={() => setOpenForm(null)}
+          onCreated={(code) => afterCreate(`Registro de satisfação ${code} gravado.`)}
+        />
+      )}
+
+      {canEdit && editTarget?.kind === "report" && options && (
+        <RapForm
+          csrfToken={csrfToken}
+          options={options}
+          initial={editTarget.record}
+          onClose={() => cancelEdit(editTarget)}
+          onCreated={(code, message) => afterEdit(editTarget, code, message)}
+        />
+      )}
+
+      {canEdit && editTarget?.kind === "dispatch" && options && (
+        <DispatchForm
+          csrfToken={csrfToken}
+          options={options}
+          initial={editTarget.record}
+          onClose={() => cancelEdit(editTarget)}
+          onCreated={(code, message) => afterEdit(editTarget, code, message)}
+        />
+      )}
+
+      {canEdit && editTarget?.kind === "complaint" && options && (
+        <ComplaintForm
+          csrfToken={csrfToken}
+          options={options}
+          initial={editTarget.record}
+          onClose={() => cancelEdit(editTarget)}
+          onCreated={(code, message) => afterEdit(editTarget, code, message)}
+        />
+      )}
+
+      {canCreateComplaint && openForm === "plan" && options && (
+        <ActionPlanForm
+          csrfToken={csrfToken}
+          options={options}
+          complaint={planTarget}
+          onClose={() => { setOpenForm(null); setPlanTarget(null) }}
+          onCreated={(code) => afterCreate(`Plano de ação ${code} aberto.`)}
+        />
+      )}
+
+      {openPlanId !== null && (
+        <ActionPlanDialog
+          planId={openPlanId}
+          csrfToken={csrfToken}
+          canWrite={canCreateComplaint}
+          onClose={() => setOpenPlanId(null)}
+          onChanged={(message) => { setNotice(message); void load() }}
+          onPrint={(id) => setPrintTarget({ kind: "plan", id })}
+        />
+      )}
+
       {canImport && (
         <QualityImportDialog
           open={isImportOpen}
@@ -582,8 +890,12 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canImp
         <PrintSheet
           report={printReport}
           dispatch={printDispatch}
-          isLoading={!printReport && !printDispatch}
-          onClose={() => { setPrintTarget(null); setPrintReport(null); setPrintDispatch(null) }}
+          complaint={printComplaint}
+          plan={printPlan}
+          isLoading={!printReport && !printDispatch && !printComplaint && !printPlan}
+          canEdit={canEdit}
+          onEdit={beginEdit}
+          onClose={closePrint}
         />
       )}
     </>

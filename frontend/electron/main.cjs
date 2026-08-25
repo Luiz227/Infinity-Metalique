@@ -113,6 +113,52 @@ function validMainWindowSender(event) {
   return Boolean(mainWindow && !mainWindow.isDestroyed() && event.sender === mainWindow.webContents)
 }
 
+// Limites do zoom da seção App das configurações. O piso e o teto existem para
+// a janela nunca chegar a um tamanho em que os controles saem da tela.
+const MIN_ZOOM = 0.8
+const MAX_ZOOM = 1.4
+
+/**
+ * O estado que a seção App mostra. `openAtLogin` é lido do sistema, e não de um
+ * arquivo nosso: quem desliga a inicialização pelo Gerenciador de Tarefas do
+ * Windows precisa ver o interruptor desligado aqui também.
+ */
+function systemInfo() {
+  return {
+    version: app.getVersion(),
+    platform: process.platform,
+    productionRelease: packageMetadata.productionRelease === true,
+    openAtLogin: process.platform === "win32" ? app.getLoginItemSettings().openAtLogin : false,
+    zoomFactor: mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents.getZoomFactor() : 1,
+  }
+}
+
+function registerSystemHandlers() {
+  ipcMain.handle("desktop-system:get-info", (event) => (
+    validMainWindowSender(event) ? systemInfo() : { ...systemInfo(), platform: "unknown" }
+  ))
+
+  ipcMain.handle("desktop-system:set-open-at-login", (event, openAtLogin) => {
+    if (!validMainWindowSender(event) || process.platform !== "win32") return systemInfo()
+
+    // `openAsHidden` fica de fora de propósito: no Windows ele não tem efeito, e
+    // quem liga isso quer o Infinity aberto ao ligar a máquina, não escondido.
+    app.setLoginItemSettings({ openAtLogin: openAtLogin === true })
+    return systemInfo()
+  })
+
+  ipcMain.handle("desktop-system:set-zoom", (event, zoomFactor) => {
+    if (!validMainWindowSender(event)) return systemInfo()
+
+    const factor = Number(zoomFactor)
+    if (Number.isFinite(factor)) {
+      mainWindow.webContents.setZoomFactor(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, factor)))
+    }
+
+    return systemInfo()
+  })
+}
+
 function publishUpdateState(nextState) {
   updateState = { ...updateState, ...nextState }
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -314,6 +360,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle("desktop-update:get-status", (event) => (
     validMainWindowSender(event) ? updateState : { ...updateState, state: "disabled" }
   ))
+  registerSystemHandlers()
   configureAutoUpdater(serverConfig.updateUrl)
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow()

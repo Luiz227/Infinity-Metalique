@@ -1,12 +1,17 @@
 import { type ReactNode, type RefObject, useEffect, useRef } from "react"
 
 import { AppHeader } from "@/components/layout/AppHeader"
+import { Scroller } from "@/components/ui/scroller"
 import { postJson } from "@/lib/api"
 import type { Route } from "@/lib/router"
 import type { User } from "@/types"
 
 /**
- * Moldura vermelha com o painel claro por dentro, usada pelas telas internas.
+ * Moldura clara com o painel de gradiente por dentro, usada pelas telas internas.
+ *
+ * A moldura não é mais uma massa de cor: quem a desenha é o respiro dos gutters
+ * em volta do painel, mais a linha de 1px que contorna ele. Moldura e card são
+ * ambos brancos, então é o gradiente do painel que separa um do outro.
  *
  * A altura é travada na viewport e só o painel rola: assim a moldura e o
  * cabeçalho ficam parados enquanto o conteúdo desce. É `h-dvh` e não `h-screen`
@@ -56,12 +61,11 @@ export function AppShell({ user, csrfToken, active, onUserUpdated, onLogout, scr
     }
   }, [csrfToken])
 
-  // Sem padding no topo: quem afasta o logo da borda é o py-7 do próprio
-  // cabeçalho, e as duas caixas são vermelhas, então o padding daqui só
-  // somaria ao dele.
+  // O painel guarda 13px contra as bordas da página; o cabeçalho respira mais,
+  // com 20px em cima e embaixo (o de cima é o que o afasta do topo da janela).
   return (
-    <main className="h-dvh overflow-hidden bg-[#db0f0f] px-3 pb-3 text-black sm:px-5 sm:pb-5 lg:px-[2vw] lg:pb-[1.5vw]">
-      <div className="mx-auto flex h-full min-h-0 max-w-[1788px] flex-col overflow-hidden rounded-[28px] bg-[#db0f0f] text-white lg:rounded-[28px]">
+    <main className="h-dvh overflow-hidden bg-frame px-[13px] pb-[13px] text-ink">
+      <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-frame text-ink">
         <AppHeader
           user={user}
           csrfToken={csrfToken}
@@ -73,18 +77,33 @@ export function AppShell({ user, csrfToken, active, onUserUpdated, onLogout, scr
         {/* O painel arredondado não rola: a barra nativa é pintada na borda da
             caixa e o border-radius do próprio elemento não a recorta, então ela
             atravessaria a curva. Quem rola é a caixa de dentro, e o
-            overflow-hidden daqui garante o recorte. */}
-        <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] bg-[#f2f2f2] text-black sm:mx-[2.4%] sm:mb-[2.4%] lg:mx-[0.3%] lg:mb-[0.3%] lg:rounded-[28px]">
+            overflow-hidden daqui garante o recorte.
+
+            A borda é a moldura de verdade da tela: sem ela o painel encostaria
+            no branco da moldura sem nenhuma linha entre os dois. */}
+        <section className="surface-gradient flex min-h-0 flex-1 flex-col overflow-hidden rounded-[12px] border border-hairline text-ink">
           {/* A margem vertical afasta a barra dos cantos: com ela o polegar só
-              começa depois que a curva termina, em vez de ser cortado por ela. */}
-          <div
-            ref={scrollRef}
-            className={embedded
-              ? "flex min-h-0 flex-1 flex-col overflow-hidden"
-              : "app-scroll my-8 flex min-h-0 flex-1 flex-col overflow-y-auto px-[5%] lg:my-10 lg:px-[1.7%]"}
-          >
-            {children}
-          </div>
+              começa depois que a curva termina, em vez de ser cortado por ela.
+
+              `scroll-fade` dissolve o conteúdo nas duas pontas em vez de cortá-lo
+              na linha da margem. A medida do fade acompanha essa mesma margem,
+              para o conteúdo terminar de sumir junto com o respiro.
+
+              PipeRun e SIGE embutem uma janela própria que ocupa a altura toda:
+              ali não há o que rolar, e um scroller a mais só atrapalharia. */}
+          {embedded ? (
+            <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              {children}
+            </div>
+          ) : (
+            <Scroller
+              ref={scrollRef}
+              className="app-scroll scroll-fade my-8 flex min-h-0 flex-1 flex-col overflow-y-auto lg:my-10 lg:[--scroll-fade-size:2.5rem]"
+              contentClassName="flex min-h-0 flex-1 flex-col px-[5%] lg:px-[1.7%]"
+            >
+              {children}
+            </Scroller>
+          )}
         </section>
       </div>
     </main>

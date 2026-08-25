@@ -1,37 +1,65 @@
 import { type FormEvent, useState } from "react"
+import { createPortal } from "react-dom"
 import { LoaderCircle, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Scroller } from "@/components/ui/scroller"
 import { Combobox } from "@/components/ui/combobox"
 import { postJson } from "@/lib/api"
+import { todayIso } from "@/pages/quality/format"
 import { EmployeePicker, Field, SelectField, TextArea, TextInput, textOptions } from "@/pages/quality/forms/FormFields"
-import type { QualityOptions } from "@/pages/quality/types"
+import type { QualityOptions, ReportDetail } from "@/pages/quality/types"
 
-const today = () => new Date().toISOString().slice(0, 10)
+const employeeSlots = (ids: number[] = []): (number | null)[] => (
+  Array.from({ length: 3 }, (_, index) => ids[index] ?? null)
+)
 
 /** Formulário de abertura de RAP, com os campos da seção 3.1 do processo. */
-export function RapForm({ csrfToken, options, onClose, onCreated, inline = false }: {
+export function RapForm({ csrfToken, options, onClose, onCreated, inline = false, initial }: {
   csrfToken: string
   options: QualityOptions
   onClose: () => void
-  onCreated: (code: string) => void
+  onCreated: (code: string, message?: string) => void
   inline?: boolean
+  initial?: ReportDetail
 }) {
-  const [reportDate, setReportDate] = useState(today)
-  const [actionType, setActionType] = useState("CORREÇÃO")
-  const [client, setClient] = useState("")
-  const [machineTypeId, setMachineTypeId] = useState("")
-  const [model, setModel] = useState("")
-  const [shed, setShed] = useState(options.sheds[0] ?? "")
-  const [sector, setSector] = useState(options.sectors[0] ?? "")
-  const [gate, setGate] = useState(options.gates[0] ?? "")
-  const [problemType, setProblemType] = useState("")
-  const [qualityCodeId, setQualityCodeId] = useState("")
-  const [description, setDescription] = useState("")
-  const [employeeIds, setEmployeeIds] = useState<(number | null)[]>([null, null, null])
-  const [needsChecklistUpdate, setNeedsChecklistUpdate] = useState(false)
-  const [checklistChange, setChecklistChange] = useState("")
-  const [immediateAction, setImmediateAction] = useState("")
+  const isEditing = initial !== undefined
+  // Um RAP novo só pode nascer com catálogo ativo; o desativado fica para o
+  // histórico. Na edição, porém, o valor atual precisa continuar selecionável.
+  const gates = [
+    ...options.gates.filter((item) => item.active || item.name === initial?.gate),
+    ...(initial?.gate && !options.gates.some((item) => item.name === initial.gate)
+      ? [{ name: initial.gate, active: false }]
+      : []),
+  ]
+  const codes = options.codes.filter((item) => item.active || Number(item.id) === initial?.quality_code_id)
+  const employees = [
+    ...options.employees,
+    ...(initial?.employee_ids.flatMap((id, index) => (
+      options.employees.some((employee) => Number(employee.id) === id)
+        ? []
+        : [{ id, name: initial.employees[index] ?? `Colaborador #${id}` }]
+    )) ?? []),
+  ]
+  const [reportDate, setReportDate] = useState(() => initial?.report_date.slice(0, 10) ?? todayIso())
+  const [actionType, setActionType] = useState(initial?.action_type ?? "CORREÇÃO")
+  const [client, setClient] = useState(initial?.client ?? "")
+  const [machineTypeId, setMachineTypeId] = useState(
+    initial?.machine_type_id == null ? "" : String(initial.machine_type_id),
+  )
+  const [model, setModel] = useState(initial?.model ?? "")
+  const [shed, setShed] = useState(initial?.shed ?? options.sheds[0] ?? "")
+  const [sector, setSector] = useState(initial?.sector ?? options.sectors[0] ?? "")
+  const [gate, setGate] = useState(initial?.gate ?? gates[0]?.name ?? "")
+  const [problemType, setProblemType] = useState(initial?.problem_type ?? "")
+  const [qualityCodeId, setQualityCodeId] = useState(
+    initial?.quality_code_id == null ? "" : String(initial.quality_code_id),
+  )
+  const [description, setDescription] = useState(initial?.description ?? "")
+  const [employeeIds, setEmployeeIds] = useState<(number | null)[]>(() => employeeSlots(initial?.employee_ids))
+  const [needsChecklistUpdate, setNeedsChecklistUpdate] = useState(Boolean(initial?.needs_checklist_update))
+  const [checklistChange, setChecklistChange] = useState(initial?.checklist_change ?? "")
+  const [immediateAction, setImmediateAction] = useState(initial?.immediate_action ?? "")
   const [error, setError] = useState("")
   const [isSaving, setIsSaving] = useState(false)
 
@@ -46,8 +74,9 @@ export function RapForm({ csrfToken, options, onClose, onCreated, inline = false
 
     try {
       const payload = await postJson<{ message: string; report: { code: string } }>(
-        "/backend/api/quality/report-create.php",
+        `/backend/api/quality/${isEditing ? "report-update" : "report-create"}.php`,
         {
+          ...(initial ? { id: initial.id } : {}),
           csrfToken,
           reportDate,
           actionType,
@@ -66,7 +95,7 @@ export function RapForm({ csrfToken, options, onClose, onCreated, inline = false
           employeeIds: employeeIds.filter((id): id is number => id !== null),
         },
       )
-      onCreated(payload.report.code)
+      onCreated(payload.report.code, payload.message)
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Erro inesperado.")
     } finally {
@@ -74,20 +103,29 @@ export function RapForm({ csrfToken, options, onClose, onCreated, inline = false
     }
   }
 
-  return (
-    <div
-      className={inline ? "mt-6 w-full pb-2" : "fixed inset-0 z-50 grid place-items-start overflow-auto bg-black/45 p-4 py-8"}
+  // Embutido não rola - a caixa é do painel. Sobreposto rola, e aí o recuo vai
+  // para o conteúdo: assim o respiro de baixo entra na conta da rolagem em vez
+  // de virar um pedaço morto no fim.
+  const form = (
+    <Scroller
+      className={inline ? "mt-6 w-full pb-2" : "fixed inset-0 z-50 overflow-auto bg-black/45"}
+      contentClassName={inline ? undefined : "grid place-items-start p-4 py-8"}
+      enabled={!inline}
       role={inline ? "region" : "dialog"}
       aria-modal={inline ? undefined : true}
       aria-labelledby="rap-form-title"
     >
-      <form className={`mx-auto w-full max-w-3xl bg-white p-6 text-[#0b0b0b] ${inline ? "rounded-lg border border-black/10" : "rounded-2xl shadow-2xl"}`} onSubmit={submit}>
+      <form className={`mx-auto w-full max-w-3xl bg-white p-6 text-ink ${inline ? "rounded-lg border border-hairline" : "rounded-2xl shadow-2xl"}`} onSubmit={submit}>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 id="rap-form-title" className="text-xl font-semibold">Novo apontamento (RAP)</h2>
-            <p className="mt-1 text-xs text-[#52514e]">O número do relatório é gerado na gravação.</p>
+            <h2 id="rap-form-title" className="text-xl font-semibold">
+              {isEditing ? `Editar apontamento ${initial.code}` : "Novo apontamento (RAP)"}
+            </h2>
+            <p className="mt-1 text-xs text-ink-soft">
+              {isEditing ? "As alterações ficarão registradas no histórico." : "O número do relatório é gerado na gravação."}
+            </p>
           </div>
-          <Button variant="ghost" size="icon" type="button" onClick={onClose} aria-label="Fechar"><X /></Button>
+          <Button variant="ghost" size="icon" type="button" onClick={onClose} aria-label="Fechar" disabled={isSaving}><X /></Button>
         </div>
 
         {error && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700" role="alert">{error}</p>}
@@ -149,7 +187,15 @@ export function RapForm({ csrfToken, options, onClose, onCreated, inline = false
           </Field>
 
           <Field label="Gate" required>
-            <SelectField ariaLabel="Gate" value={gate} onValueChange={setGate} options={textOptions(options.gates)} />
+            <SelectField
+              ariaLabel="Gate"
+              value={gate}
+              onValueChange={setGate}
+              options={gates.map((item) => ({
+                value: item.name,
+                label: item.active ? item.name : `${item.name} (inativo)`,
+              }))}
+            />
           </Field>
 
           <Field label="Local da não conformidade" required>
@@ -166,7 +212,10 @@ export function RapForm({ csrfToken, options, onClose, onCreated, inline = false
               ariaLabel="Código do problema"
               value={qualityCodeId}
               onValueChange={setQualityCodeId}
-              options={options.codes.map((code) => ({ value: String(code.id), label: `${code.code} - ${code.description}` }))}
+              options={codes.map((code) => ({
+                value: String(code.id),
+                label: `${code.code} - ${code.description}${code.active ? "" : " (inativo)"}`,
+              }))}
             />
           </Field>
 
@@ -178,7 +227,7 @@ export function RapForm({ csrfToken, options, onClose, onCreated, inline = false
 
           <div className="sm:col-span-2">
             <Field label="Colaboradores envolvidos" required hint="Até três - é o que alimenta o indicador individual.">
-              <EmployeePicker employees={options.employees} value={employeeIds} onChange={setEmployeeIds} />
+              <EmployeePicker employees={employees} value={employeeIds} onChange={setEmployeeIds} />
             </Field>
           </div>
 
@@ -188,7 +237,7 @@ export function RapForm({ csrfToken, options, onClose, onCreated, inline = false
             </Field>
           </div>
 
-          <div className="sm:col-span-2 rounded-lg border border-black/10 p-4">
+          <div className="sm:col-span-2 rounded-lg border border-hairline p-4">
             <label className="flex items-center gap-2 text-sm font-medium">
               <input
                 type="checkbox"
@@ -212,10 +261,16 @@ export function RapForm({ csrfToken, options, onClose, onCreated, inline = false
           <Button type="button" variant="outline" className="rounded-full" onClick={onClose} disabled={isSaving}>Cancelar</Button>
           <Button type="submit" className="rounded-full" disabled={isSaving}>
             {isSaving && <LoaderCircle className="animate-spin" />}
-            {isSaving ? "Gravando..." : "Gravar apontamento"}
+            {isSaving ? (isEditing ? "Salvando..." : "Gravando...") : (isEditing ? "Salvar alterações" : "Gravar apontamento")}
           </Button>
         </div>
       </form>
-    </div>
+    </Scroller>
   )
+
+  // Em tela cheia o formulário nasce fora do painel: o painel é mascarado
+  // (ver `.scroll-fade` em base.css) e máscara recorta descendente
+  // `position: fixed`, que é o que sustenta este sobreposto. Embutido, ele é
+  // conteúdo comum da página e fica onde está.
+  return inline ? form : createPortal(form, document.body)
 }

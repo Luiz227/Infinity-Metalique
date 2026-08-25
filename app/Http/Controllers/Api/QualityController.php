@@ -9,13 +9,26 @@ use App\Models\User;
 use App\Services\QualityImportService;
 use App\Services\QualityService;
 use App\Services\UploadService;
+use App\Support\QualityRevision;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use InvalidArgumentException;
 use RuntimeException;
 
 final class QualityController extends Controller
 {
+    public function revision(): JsonResponse
+    {
+        try {
+            return response()
+                ->json(['revision' => QualityRevision::current()])
+                ->header('Cache-Control', 'private, no-store, max-age=0');
+        } catch (QueryException) {
+            return response()->json(['message' => 'Não foi possível verificar atualizações da Qualidade.'], 503);
+        }
+    }
+
     public function importPreview(Request $request, QualityImportService $imports): JsonResponse
     {
         /** @var User $user */
@@ -137,6 +150,36 @@ final class QualityController extends Controller
             : response()->json(['dispatch' => $dispatch]);
     }
 
+    public function complaints(Request $request, QualityService $quality): JsonResponse
+    {
+        try {
+            return response()->json($quality->complaints(
+                $quality->filters($request->query()),
+                $request->integer('page', 1),
+                $request->integer('perPage', 25)
+            ));
+        } catch (QueryException) {
+            return response()->json(['message' => 'Não foi possível carregar os registros de satisfação.'], 503);
+        }
+    }
+
+    public function complaint(Request $request, QualityService $quality): JsonResponse
+    {
+        $id = $request->integer('id');
+        if ($id <= 0) {
+            return response()->json(['message' => 'Informe o registro desejado.'], 422);
+        }
+        try {
+            $complaint = $quality->findComplaint($id);
+        } catch (QueryException) {
+            return response()->json(['message' => 'Não foi possível carregar o registro de satisfação.'], 503);
+        }
+
+        return $complaint === null
+            ? response()->json(['message' => 'Registro de satisfação não encontrado.'], 404)
+            : response()->json(['complaint' => $complaint]);
+    }
+
     public function createReport(Request $request, QualityService $quality): JsonResponse
     {
         /** @var User $user */
@@ -197,6 +240,170 @@ final class QualityController extends Controller
         return response()->json(['message' => 'Coleta registrada com sucesso.', 'dispatch' => $dispatch], 201);
     }
 
+    public function createComplaint(Request $request, QualityService $quality): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $validation = $quality->validateComplaint($request->all());
+        if (! $validation['success']) {
+            return response()->json(['message' => $validation['message']], 422);
+        }
+        try {
+            $complaint = $quality->createComplaint($validation['data'], (int) $user->id);
+        } catch (QueryException) {
+            return response()->json(['message' => 'Não foi possível gravar o registro de satisfação.'], 503);
+        }
+
+        return response()->json([
+            'message' => 'Registro de satisfação gravado com sucesso.',
+            'complaint' => $complaint,
+        ], 201);
+    }
+
+    public function updateReport(Request $request, QualityService $quality): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $id = $request->integer('id');
+        if ($id <= 0) {
+            return response()->json(['message' => 'Informe um RAP válido.'], 422);
+        }
+
+        $validation = $quality->validateReport($request->all(), $id);
+        if (! $validation['success']) {
+            return response()->json(['message' => $validation['message']], 422);
+        }
+
+        try {
+            $result = $quality->updateReport($id, $validation['data'], (int) $user->id);
+        } catch (QueryException) {
+            return response()->json(['message' => 'Não foi possível atualizar o RAP.'], 503);
+        }
+        if ($result === null) {
+            return response()->json(['message' => 'RAP não encontrado.'], 404);
+        }
+
+        $code = (string) ($result['report']['code'] ?? 'RAP');
+
+        return response()->json([
+            'message' => $result['changed']
+                ? "{$code} atualizado com sucesso."
+                : 'Nenhuma alteração foi necessária.',
+            'report' => $result['report'],
+        ]);
+    }
+
+    public function updateDispatch(
+        Request $request,
+        QualityService $quality,
+        UploadService $uploads
+    ): JsonResponse {
+        /** @var User $user */
+        $user = $request->user();
+        $id = $request->integer('id');
+        if ($id <= 0) {
+            return response()->json(['message' => 'Informe um RETIR válido.'], 422);
+        }
+
+        $validation = $quality->validateDispatch($request->all());
+        if (! $validation['success']) {
+            return response()->json(['message' => $validation['message']], 422);
+        }
+
+        $kept = $request->input('keptPhotos', []);
+        $kept = is_array($kept) ? $kept : [$kept];
+        $kept = array_values(array_unique(array_filter(
+            array_map(static fn (mixed $path): string => trim((string) $path), $kept),
+            static fn (string $path): bool => $path !== ''
+        )));
+        $files = $request->file('photos', []);
+        $files = is_array($files) ? array_values($files) : [$files];
+        $totalPhotos = count($kept) + count($files);
+        if ($totalPhotos < 2 || $totalPhotos > 6) {
+            return response()->json(['message' => 'Mantenha entre duas e seis fotos do carregamento.'], 422);
+        }
+
+        $newPaths = [];
+        try {
+            foreach ($files as $file) {
+                $newPaths[] = $uploads->storeImage($file, 'dispatches');
+            }
+        } catch (RuntimeException $error) {
+            $uploads->remove($newPaths);
+
+            return response()->json(['message' => $error->getMessage()], 422);
+        }
+
+        try {
+            $result = $quality->updateDispatch(
+                $id,
+                $validation['data'],
+                $kept,
+                $newPaths,
+                (int) $user->id
+            );
+        } catch (InvalidArgumentException $error) {
+            $uploads->remove($newPaths);
+
+            return response()->json(['message' => $error->getMessage()], 422);
+        } catch (QueryException) {
+            $uploads->remove($newPaths);
+
+            return response()->json(['message' => 'Não foi possível atualizar o RETIR.'], 503);
+        }
+        if ($result === null) {
+            $uploads->remove($newPaths);
+
+            return response()->json(['message' => 'RETIR não encontrado.'], 404);
+        }
+
+        // Os arquivos novos já estavam no disco antes da transação. Os antigos
+        // só saem depois do commit, para um rollback nunca deixar caminhos
+        // gravados sem o respectivo arquivo.
+        $uploads->remove($result['removedPhotos']);
+        $code = (string) ($result['dispatch']['code'] ?? 'RETIR');
+
+        return response()->json([
+            'message' => $result['changed']
+                ? "{$code} atualizado com sucesso."
+                : 'Nenhuma alteração foi necessária.',
+            'dispatch' => $result['dispatch'],
+        ]);
+    }
+
+    public function updateComplaint(Request $request, QualityService $quality): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $id = $request->integer('id');
+        if ($id <= 0) {
+            return response()->json(['message' => 'Informe um RSC válido.'], 422);
+        }
+
+        $validation = $quality->validateComplaint($request->all());
+        if (! $validation['success']) {
+            return response()->json(['message' => $validation['message']], 422);
+        }
+
+        try {
+            $result = $quality->updateComplaint($id, $validation['data'], (int) $user->id);
+        } catch (QueryException) {
+            return response()->json(['message' => 'Não foi possível atualizar o RSC.'], 503);
+        }
+        if ($result === null) {
+            return response()->json(['message' => 'RSC não encontrado.'], 404);
+        }
+
+        $code = (string) ($result['complaint']['code'] ?? 'RSC');
+
+        return response()->json([
+            'message' => $result['changed']
+                ? "{$code} atualizado com sucesso."
+                : 'Nenhuma alteração foi necessária.',
+            'complaint' => $result['complaint'],
+        ]);
+    }
+
     public function deleteReport(Request $request, QualityService $quality): JsonResponse
     {
         $id = $request->integer('id');
@@ -237,5 +444,22 @@ final class QualityController extends Controller
             'message' => "{$dispatch['code']} excluído com sucesso.",
             'code' => $dispatch['code'],
         ]);
+    }
+
+    public function deleteComplaint(Request $request, QualityService $quality): JsonResponse
+    {
+        $id = $request->integer('id');
+        if ($id <= 0) {
+            return response()->json(['message' => 'Informe um RSC válido.'], 422);
+        }
+        try {
+            $code = $quality->deleteComplaint($id);
+        } catch (QueryException) {
+            return response()->json(['message' => 'Não foi possível excluir o RSC.'], 503);
+        }
+
+        return $code === null
+            ? response()->json(['message' => 'RSC não encontrado.'], 404)
+            : response()->json(['message' => "{$code} excluído com sucesso.", 'code' => $code]);
     }
 }

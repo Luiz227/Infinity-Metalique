@@ -4,11 +4,13 @@ import { StatTile } from "@/pages/quality/charts/StatTile"
 import type { QualityChartSelection, QualityDashboard, QualityOptions } from "@/pages/quality/types"
 
 /** Visão geral dos apontamentos: volume, evolução e onde eles se concentram. */
-export function RapsSection({ data, highlight, selection, options, onSelectPeriod, onSelectProblemType, onSelectCode }: {
+export function RapsSection({ data, highlight, selection, options, target, onSelectPeriod, onSelectProblemType, onSelectCode }: {
   data: QualityDashboard
   highlight: QualityDashboard | null
   selection: QualityChartSelection | null
   options: QualityOptions | null
+  /** Teto de RAPs por mês vindo da engrenagem, ou null quando não há meta. */
+  target: number | null
   onSelectPeriod: (period: string) => void
   onSelectProblemType: (problemType: string) => void
   onSelectCode: (code: string) => void
@@ -29,7 +31,16 @@ export function RapsSection({ data, highlight, selection, options, onSelectPerio
     <div className="grid gap-4">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile label="Total de RAPs" value={cards.totalReports} hero hint="Apontamentos no filtro atual" />
-        <StatTile label={`RAPs em ${cards.latestPeriodLabel}`} value={cards.latestPeriodReports} hint="Mês mais recente com registro" />
+        {/* A meta é um teto: o cartão fica verde enquanto o mês estiver abaixo
+            dela e vermelho assim que passar. Sem meta definida, volta ao neutro. */}
+        <StatTile
+          label={`RAPs em ${cards.latestPeriodLabel}`}
+          value={cards.latestPeriodReports}
+          tone={target === null ? "default" : cards.latestPeriodReports > target ? "critical" : "good"}
+          hint={target === null
+            ? "Mês mais recente com registro"
+            : `Meta: máx. ${target} · mês mais recente`}
+        />
         <StatTile label="Clientes / lotes" value={cards.clients} hint="Distintos entre os apontamentos" />
         <StatTile
           label="Modelo com mais RAPs"
@@ -43,16 +54,17 @@ export function RapsSection({ data, highlight, selection, options, onSelectPerio
       <ChartCard
         title="RAPs por mês"
         description="Serve para ver se os apontamentos estão caindo ou subindo mês a mês."
-        help="Cada coluna conta os RAPs abertos no mês, dentro do filtro em vigor. Clique numa coluna para recortar os demais gráficos por aquele mês: eles passam a mostrar a parcela do período sobre o total. Uma subida isolada costuma ser lote ou cliente novo; uma subida sustentada por três meses é processo."
+        help="Cada coluna conta os RAPs abertos no mês, dentro do filtro em vigor. Clique numa coluna para recortar os demais gráficos por aquele mês: eles passam a mostrar a parcela do período sobre o total. Uma subida isolada costuma ser lote ou cliente novo; uma subida sustentada por três meses é processo. A linha pontilhada vermelha é a meta definida na engrenagem: ela é um teto, e o mês que passar dela aparece em vermelho."
         table={{ head: ["Mês", "RAPs"], rows: data.reportsByPeriod.map((row) => [row.label, row.value]) }}
       >
         <TrendColumns
+          animationKey="quality:raps:period"
           data={data.reportsByPeriod}
           measure="RAPs"
           highlightData={selection && highlight ? highlight.reportsByPeriod : null}
           selectedPeriod={selectedPeriod}
+          target={target}
           onSelect={onSelectPeriod}
-          compact
         />
       </ChartCard>
 
@@ -64,6 +76,7 @@ export function RapsSection({ data, highlight, selection, options, onSelectPerio
           table={{ head: ["Tipo", "RAPs"], rows: data.reportsByProblemType.map((row) => [row.label, row.value]) }}
         >
           <RankingBars
+            animationKey="quality:raps:problem-type"
             data={data.reportsByProblemType}
             measure="RAPs"
             height={300}
@@ -72,6 +85,16 @@ export function RapsSection({ data, highlight, selection, options, onSelectPerio
             selectedLabel={(selection?.filters.problemType as string | undefined) ?? null}
             onSelect={onSelectProblemType}
           />
+          <div className="mt-3 border-t border-[#f0efec] pt-3">
+            <h4 className="text-xs font-semibold text-ink">Top 3 tipos de problemas</h4>
+            <ul className="mt-1.5 space-y-1 text-xs text-ink-soft">
+              {data.reportsByProblemType.slice(0, 3).map((row) => (
+                <li key={row.label}>
+                  <span className="font-semibold text-ink">{row.label}</span> - {row.value} {row.value === 1 ? "RAP" : "RAPs"}
+                </li>
+              ))}
+            </ul>
+          </div>
         </ChartCard>
 
         <ChartCard
@@ -84,6 +107,7 @@ export function RapsSection({ data, highlight, selection, options, onSelectPerio
           }}
         >
           <RankingBars
+            animationKey="quality:raps:code"
             data={data.reportsByCode}
             measure="RAPs"
             highlightData={selection && highlight ? highlight.reportsByCode : null}
@@ -92,13 +116,16 @@ export function RapsSection({ data, highlight, selection, options, onSelectPerio
             selectedLabel={selectedCode}
             onSelect={onSelectCode}
           />
-          <ul className="mt-3 space-y-1 border-t border-[#f0efec] pt-3 text-xs text-[#52514e]">
-            {data.reportsByCode.slice(0, 3).map((row) => (
-              <li key={row.label}>
-                <span className="font-semibold text-[#0b0b0b]">{row.label}</span> - {row.description}
-              </li>
-            ))}
-          </ul>
+          <div className="mt-3 border-t border-[#f0efec] pt-3">
+            <h4 className="text-xs font-semibold text-ink">Top 3 códigos de erros</h4>
+            <ul className="mt-1.5 space-y-1 text-xs text-ink-soft">
+              {data.reportsByCode.slice(0, 3).map((row) => (
+                <li key={row.label}>
+                  <span className="font-semibold text-ink">{row.label}</span> - {row.description}
+                </li>
+              ))}
+            </ul>
+          </div>
         </ChartCard>
       </div>
     </div>
