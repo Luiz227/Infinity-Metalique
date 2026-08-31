@@ -33,6 +33,8 @@ Homestead.yaml
 !/public/assets/uploads/dispatches/.gitkeep
 !/public/assets/uploads/dispatches/.htaccess
 /public/desktop-updates/
+# Backups da zona de perigo: dados de cliente, nunca em commit.
+/storage/app/purgas/
 
 # ---------------------------------------------------------------
 # Frontend React / Vite / Electron

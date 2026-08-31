@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\PreferencesController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\QualityController;
 use App\Http\Controllers\Api\QualitySettingsController;
+use App\Http\Controllers\Api\SectorPurgeController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -66,6 +67,21 @@ Route::prefix('backend/api')->group(function (): void {
                 ->middleware('permission:contact.manage');
             Route::post('contact-save.php', [ContactController::class, 'save'])
                 ->middleware(['api.csrf', 'permission:contact.manage']);
+
+            /*
+             * Zona de perigo. Sem `permission:` de propósito: o cargo é conferido
+             * no controller porque este acesso não é para conceder a ninguém.
+             * O preparo é limitado por tentativa - ele confere uma senha.
+             */
+            Route::get('sector-purge.php', [SectorPurgeController::class, 'index']);
+            // POST porque o token autoriza baixar e apagar o setor: numa query
+            // string ele iria parar no access.log e no histórico do navegador.
+            Route::post('sector-purge-download.php', [SectorPurgeController::class, 'download'])
+                ->middleware('api.csrf');
+            Route::post('sector-purge-prepare.php', [SectorPurgeController::class, 'prepare'])
+                ->middleware(['api.csrf', 'throttle:10,1']);
+            Route::post('sector-purge-confirm.php', [SectorPurgeController::class, 'confirm'])
+                ->middleware('api.csrf');
         });
 
         Route::prefix('quality')->middleware('permission:quality.view')->group(function (): void {

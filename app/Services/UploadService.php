@@ -57,4 +57,47 @@ final class UploadService
             }
         }
     }
+
+    /**
+     * Tira as imagens da pasta pública sem destruí-las.
+     *
+     * Um expurgo promete um backup, e um backup em JSON não carrega imagem
+     * nenhuma. Mover é o que mantém a promessa honesta: o `rename` no mesmo
+     * volume é instantâneo e não gasta disco a mais, a pasta pública fica limpa
+     * - que é o que "apagar" significa para quem clicou - e os arquivos seguem
+     * recuperáveis ao lado do dump.
+     *
+     * @param  iterable<string>  $paths
+     * @return int Quantos arquivos realmente saíram da pasta pública.
+     */
+    public function archive(iterable $paths, string $destination): int
+    {
+        if (! is_dir($destination) && ! mkdir($destination, 0755, true) && ! is_dir($destination)) {
+            throw new RuntimeException('Não foi possível preparar a pasta do arquivo morto.');
+        }
+
+        $moved = 0;
+        foreach ($paths as $path) {
+            if (! str_starts_with($path, 'assets/uploads/')) {
+                continue;
+            }
+
+            $name = basename($path);
+            $fullPath = public_path('assets/uploads/'.basename(dirname($path)).'/'.$name);
+            if (! is_file($fullPath)) {
+                continue;
+            }
+
+            if (@rename($fullPath, $destination.DIRECTORY_SEPARATOR.$name)) {
+                $moved++;
+                continue;
+            }
+
+            // Falhou mover - volume diferente, permissão. Guardar o arquivo não
+            // pode custar deixá-lo servível pela web depois de um "apagar".
+            @unlink($fullPath);
+        }
+
+        return $moved;
+    }
 }

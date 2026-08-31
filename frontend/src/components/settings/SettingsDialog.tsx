@@ -1,10 +1,11 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react"
-import { Bell, KeyRound, MonitorSmartphone, Phone, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react"
+import { Bell, KeyRound, MonitorSmartphone, Phone, ShieldCheck, SlidersHorizontal, TriangleAlert, UserRound } from "lucide-react"
 
 import { SettingsDraftProvider, useDraftSection, useSettingsDraft } from "@/components/settings/SettingsDraft"
 import { SettingsSaveBar } from "@/components/settings/SettingsSaveBar"
 import { AppSection } from "@/components/settings/sections/AppSection"
 import { ContactSection } from "@/components/settings/sections/ContactSection"
+import { DangerZoneSection } from "@/components/settings/sections/DangerZoneSection"
 import { NotificationsSection } from "@/components/settings/sections/NotificationsSection"
 import { PreferencesSection } from "@/components/settings/sections/PreferencesSection"
 import { ProfileSection } from "@/components/settings/sections/ProfileSection"
@@ -24,7 +25,8 @@ import { QualitySettingsPanel } from "@/pages/quality/QualitySettingsPanel"
 import { cn } from "@/lib/utils"
 import type { User } from "@/types"
 
-export type SettingsSectionId = "perfil" | "seguranca" | "preferencias" | "notificacoes" | "qualidade" | "ramais" | "app"
+export type SettingsSectionId =
+  | "perfil" | "seguranca" | "preferencias" | "notificacoes" | "qualidade" | "ramais" | "app" | "zona-de-perigo"
 
 type SectionDefinition = {
   id: SettingsSectionId
@@ -105,6 +107,17 @@ const SECTIONS: SectionDefinition[] = [
     description: "Os telefones internos e os canais que a aba Contato mostra.",
     icon: <Phone className="size-4" />,
     isVisible: (user) => hasPermission(user, "contact.manage"),
+  },
+  {
+    id: "zona-de-perigo",
+    group: "Administração",
+    label: "Zona de perigo",
+    title: "Zona de perigo",
+    description: "Esvaziar de vez as abas do sistema. As tabelas continuam; os dados não.",
+    icon: <TriangleAlert className="size-4" />,
+    // Cargo, e não permissão: apagar um setor não é coisa que se conceda a
+    // alguém pela tela de permissões. O servidor confere o mesmo.
+    isVisible: (user) => user.role === "admin",
   },
 ]
 
@@ -313,6 +326,7 @@ function SettingsDialogBody({ open, section, user, csrfToken, onOpenChange, onSe
                 {item.id === "app" && <AppSection />}
                 {item.id === "qualidade" && <QualitySettingsPanel csrfToken={csrfToken} />}
                 {item.id === "ramais" && <ContactSection csrfToken={csrfToken} />}
+                {item.id === "zona-de-perigo" && <DangerZoneSection csrfToken={csrfToken} />}
               </div>
             ))}
           </Scroller>

@@ -79,6 +79,16 @@ final class UserController extends Controller
         if (! in_array($role, ['admin', 'user'], true)) {
             return response()->json(['message' => 'Escolha um tipo de conta válido.'], 422);
         }
+        /*
+         * `users.manage` é permissão de administrar contas, não de fabricar
+         * pares. Sem esta linha, quem a tem cria uma conta `admin`, entra nela e
+         * alcança tudo que é restrito ao cargo - inclusive a zona de perigo.
+         */
+        if ($role === 'admin' && $administrator->role !== 'admin') {
+            return response()->json([
+                'message' => 'Somente administradores podem conceder o cargo de administrador.',
+            ], 403);
+        }
         if ($id === 0 && $password === '') {
             return response()->json(['message' => 'Informe uma senha inicial.'], 422);
         }
@@ -127,6 +137,18 @@ final class UserController extends Controller
                     }
                     if ($id === (int) $administrator->id && (! $isActive || $role !== 'admin')) {
                         return ['error' => 'Você não pode remover o próprio acesso administrativo.', 'status' => 422];
+                    }
+                    /*
+                     * O simétrico do guarda lá de cima: não é escalada, mas quem
+                     * tem `users.manage` poderia rebaixar ou desativar todos os
+                     * administradores e, com isso, trancar a zona de perigo por
+                     * fora. Só o cargo mexe no cargo.
+                     */
+                    if ($target->role === 'admin' && $administrator->role !== 'admin') {
+                        return [
+                            'error' => 'Somente administradores podem alterar uma conta administradora.',
+                            'status' => 403,
+                        ];
                     }
 
                     $values = [
