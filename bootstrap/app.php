@@ -28,6 +28,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // O frontend de producao fica atras do proxy HTTPS do Easypanel/Traefik.
+        $middleware->trustProxies(at: '*', headers: Request::HEADER_X_FORWARDED_TRAEFIK);
         $middleware->validateCsrfTokens(except: ['backend/api/*']);
         $middleware->alias([
             'api.auth' => AuthenticateApi::class,

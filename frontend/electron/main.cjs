@@ -19,6 +19,7 @@ const EXTERNAL_APPS = {
     url: "https://app.sigecloud.com.br/Login.aspx",
     partition: "persist:sige",
     allowedHosts: ["sigecloud.com.br"],
+    singleSurfaceNavigation: true,
   },
 }
 
@@ -269,10 +270,50 @@ function connectionErrorPage(errorDescription) {
 }
 
 function secureExternalWebContents(contents, appConfig) {
+  const keepNavigationInsidePanel = () => {
+    void contents.executeJavaScript(`(() => {
+      if (window.__infinitySingleSurfaceNavigation) return
+      window.__infinitySingleSurfaceNavigation = true
+
+      const useCurrentSurface = (element) => {
+        const target = String(element?.getAttribute?.("target") || "").toLowerCase()
+        if (target && target !== "_self" && target !== "_top" && target !== "_parent") {
+          element.setAttribute("target", "_self")
+        }
+      }
+
+      document.addEventListener("click", (event) => {
+        const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null
+        if (anchor) useCurrentSurface(anchor)
+      }, true)
+
+      document.addEventListener("submit", (event) => {
+        if (event.target instanceof HTMLFormElement) useCurrentSurface(event.target)
+      }, true)
+
+      const nativeSubmit = HTMLFormElement.prototype.submit
+      HTMLFormElement.prototype.submit = function infinitySubmit() {
+        useCurrentSurface(this)
+        return nativeSubmit.call(this)
+      }
+
+      Object.defineProperty(window, "open", {
+        configurable: true,
+        value(url) {
+          const destination = String(url || "").trim()
+          if (destination && destination !== "about:blank") window.location.assign(destination)
+          return window
+        },
+      })
+    })()`)
+      .catch((error) => console.warn("Nao foi possivel ajustar a navegacao incorporada.", error))
+  }
+
   contents.setWindowOpenHandler(({ url }) => {
     if (isAllowedUrl(appConfig, url)) void contents.loadURL(url)
     return { action: "deny" }
   })
+  if (appConfig.singleSurfaceNavigation) contents.on("dom-ready", keepNavigationInsidePanel)
   contents.on("will-navigate", (event, url) => {
     if (!isAllowedUrl(appConfig, url)) event.preventDefault()
   })
