@@ -48,7 +48,6 @@ COPY bootstrap ./bootstrap
 COPY config ./config
 COPY database ./database
 COPY public ./public
-COPY resources ./resources
 COPY routes ./routes
 COPY artisan ./artisan
 
