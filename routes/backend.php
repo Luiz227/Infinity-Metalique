@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\ActionPlanController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ContactController;
+use App\Http\Controllers\Api\DocumentController;
 use App\Http\Controllers\Api\GeneralController;
 use App\Http\Controllers\Api\PreferencesController;
 use App\Http\Controllers\Api\ProfileController;
@@ -15,6 +16,12 @@ use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('backend/api')->group(function (): void {
+    Route::get('documents/file.php/{document}', [DocumentController::class, 'signedFile'])
+        ->middleware('signed:relative')
+        ->name('documents.file');
+    Route::post('documents/callback.php', [DocumentController::class, 'callback'])
+        ->name('documents.callback');
+
     Route::get('csrf.php', [AuthController::class, 'csrf']);
     Route::get('session.php', [AuthController::class, 'session']);
     Route::get('summary.php', [GeneralController::class, 'summary']);
@@ -42,6 +49,20 @@ Route::prefix('backend/api')->group(function (): void {
         Route::post('profile-photo.php', [ProfileController::class, 'photo'])->middleware('api.csrf');
         // Só a escrita tem rota: as preferências já saem em csrf.php e session.php.
         Route::post('preferences-save.php', [PreferencesController::class, 'save'])->middleware('api.csrf');
+
+        Route::prefix('documents')->middleware('permission:documents.view')->group(function (): void {
+            Route::get('index.php', [DocumentController::class, 'index']);
+            Route::get('download.php', [DocumentController::class, 'download']);
+            Route::get('preview.php', [DocumentController::class, 'preview']);
+            Route::get('editor-config.php', [DocumentController::class, 'editorConfig']);
+            Route::get('collaborators.php', [DocumentController::class, 'collaborators']);
+            Route::post('upload.php', [DocumentController::class, 'upload'])
+                ->middleware('api.csrf');
+            Route::post('delete.php', [DocumentController::class, 'delete'])
+                ->middleware('api.csrf');
+            Route::post('share.php', [DocumentController::class, 'share'])->middleware('api.csrf');
+            Route::post('force-save.php', [DocumentController::class, 'forceSave'])->middleware('api.csrf');
+        });
 
         /*
          * O Dashboard consome apenas consultas. Ele tem rotas próprias para que
@@ -88,6 +109,7 @@ Route::prefix('backend/api')->group(function (): void {
             Route::get('revision.php', [QualityController::class, 'revision']);
             Route::get('options.php', [QualityController::class, 'options']);
             Route::get('dashboard.php', [QualityController::class, 'dashboard']);
+            Route::get('export.php', [QualityController::class, 'export']);
             Route::get('reports.php', [QualityController::class, 'reports']);
             Route::get('report.php', [QualityController::class, 'report']);
             Route::get('dispatches.php', [QualityController::class, 'dispatches']);

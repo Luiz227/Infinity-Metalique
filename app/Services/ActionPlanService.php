@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Models\User;
 use App\Support\QualityRevision;
 use DateTimeImmutable;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,8 @@ final class ActionPlanService
 
     private const REOPENED_NOTE = 'Plano de ação reaberto.';
 
+    private const NO_COMPLAINT_ACTION = 'Não foi necessário gerar uma tratativa corretiva, pois não houve reclamação de cliente no mês.';
+
     /**
      * Os quatro números da aba, sob o filtro atual.
      *
@@ -38,7 +41,7 @@ final class ActionPlanService
         $where = $this->conditions($filters, $params);
         $count = fn (string $condition, array $extra = []): int => (int) $this->value(
             'SELECT COUNT(*) FROM complaint_action_plans p
-               JOIN customer_complaints c ON c.id = p.customer_complaint_id'
+               LEFT JOIN customer_complaints c ON c.id = p.customer_complaint_id'
             .$this->narrow($where, $condition),
             $params + $extra
         );
@@ -63,7 +66,7 @@ final class ActionPlanService
         $offset = ($page - 1) * $perPage;
         $total = (int) $this->value(
             "SELECT COUNT(*) FROM complaint_action_plans p
-               JOIN customer_complaints c ON c.id = p.customer_complaint_id{$where}",
+               LEFT JOIN customer_complaints c ON c.id = p.customer_complaint_id{$where}",
             $params
         );
 
@@ -72,14 +75,17 @@ final class ActionPlanService
         $items = $this->rows(
             "SELECT p.id, p.code, p.opened_on, p.due_on, p.closed_on, p.action, p.root_cause,
                     c.id AS complaint_id, c.code AS complaint_code, c.complaint_date, c.problem,
-                    cl.name AS client, t.name AS machine_type, c.model, e.name AS employee,
+                    p.no_complaint_month, p.no_complaint_note,
+                    cl.name AS client, t.name AS machine_type, c.model,
+                    COALESCE(e.name, u.name) AS employee,
                     (SELECT COUNT(*) FROM complaint_action_plan_entries n
                       WHERE n.complaint_action_plan_id = p.id) AS entries
                FROM complaint_action_plans p
-               JOIN customer_complaints c ON c.id = p.customer_complaint_id
+               LEFT JOIN customer_complaints c ON c.id = p.customer_complaint_id
                LEFT JOIN clients cl ON cl.id = c.client_id
                LEFT JOIN machine_types t ON t.id = c.machine_type_id
                LEFT JOIN employees e ON e.id = p.employee_id
+               LEFT JOIN users u ON u.id = p.created_by_user_id
                {$where} ORDER BY (p.closed_on IS NULL) DESC, p.opened_on DESC, p.sequence DESC
                LIMIT {$perPage} OFFSET {$offset}",
             $params
@@ -105,7 +111,7 @@ final class ActionPlanService
                     cl.name AS client, u.name AS created_by
                FROM complaint_action_plan_entries n
                JOIN complaint_action_plans p ON p.id = n.complaint_action_plan_id
-               JOIN customer_complaints c ON c.id = p.customer_complaint_id
+               LEFT JOIN customer_complaints c ON c.id = p.customer_complaint_id
                LEFT JOIN clients cl ON cl.id = c.client_id
                LEFT JOIN users u ON u.id = n.created_by_user_id
                {$where} ORDER BY n.entry_date DESC, n.id DESC LIMIT {$limit}",
@@ -119,10 +125,11 @@ final class ActionPlanService
         $rows = $this->rows(
             'SELECT p.*, c.code AS complaint_code, c.complaint_date, c.problem, c.local_treatment,
                     c.quality_alert, cl.name AS client, t.name AS machine_type, c.model,
-                    e.name AS employee, u.name AS created_by, u.job_title AS created_by_job_title,
+                    COALESCE(e.name, u.name) AS employee,
+                    u.name AS created_by, u.job_title AS created_by_job_title,
                     cu.name AS closed_by
                FROM complaint_action_plans p
-               JOIN customer_complaints c ON c.id = p.customer_complaint_id
+               LEFT JOIN customer_complaints c ON c.id = p.customer_complaint_id
                LEFT JOIN clients cl ON cl.id = c.client_id
                LEFT JOIN machine_types t ON t.id = c.machine_type_id
                LEFT JOIN employees e ON e.id = p.employee_id
@@ -155,17 +162,24 @@ final class ActionPlanService
     }
 
     /** @return array<string, mixed> */
-    public function create(array $data, int $userId): array
+    public function create(array $data, User $user): array
     {
-        $id = DB::transaction(function () use ($data, $userId): int {
+        $id = DB::transaction(function () use ($data, $user): int {
+            $userId = (int) $user->id;
+            $employeeId = $user->employee_id !== null
+                && DB::table('employees')->where('id', $user->employee_id)->exists()
+                    ? (int) $user->employee_id
+                    : null;
             $sequence = ((int) DB::table('complaint_action_plans')->lockForUpdate()->max('sequence')) + 1;
             $id = DB::table('complaint_action_plans')->insertGetId([
                 'code' => 'PAC'.str_pad((string) $sequence, 2, '0', STR_PAD_LEFT),
                 'sequence' => $sequence,
                 'customer_complaint_id' => $data['complaintId'],
+                'no_complaint_month' => $data['noComplaintMonth'],
+                'no_complaint_note' => $data['noComplaintNote'],
                 'opened_on' => $data['openedOn'],
                 'due_on' => $data['dueOn'],
-                'employee_id' => $data['employeeId'],
+                'employee_id' => $employeeId,
                 'root_cause' => $data['rootCause'],
                 'action' => $data['action'],
                 'created_by_user_id' => $userId,
@@ -293,39 +307,55 @@ final class ActionPlanService
     }
 
     /** @return array{success: bool, message: string, data: array<string, mixed>} */
-    public function validatePlan(array $input): array
+    public function validatePlanRequest(array $input): array
     {
         $fail = static fn (string $message): array => ['success' => false, 'message' => $message, 'data' => []];
+        $noComplaint = filter_var($input['noComplaint'] ?? false, FILTER_VALIDATE_BOOLEAN);
         $complaintId = (int) ($input['complaintId'] ?? 0);
-        if ($complaintId <= 0 || ! DB::table('customer_complaints')->where('id', $complaintId)->exists()) {
+        $noComplaintMonth = $this->monthStart($input['noComplaintMonth'] ?? null);
+
+        if (! $noComplaint && ($complaintId <= 0 || ! DB::table('customer_complaints')->where('id', $complaintId)->exists())) {
             return $fail('Selecione a reclamação que este plano vai tratar.');
         }
-        if (DB::table('complaint_action_plans')->where('customer_complaint_id', $complaintId)->exists()) {
+        if ($noComplaint && $noComplaintMonth === null) {
+            return $fail('Informe o mês sem reclamação.');
+        }
+        $noComplaintNote = $this->text($input['noComplaintNote'] ?? '', 2000);
+        if ($noComplaint && mb_strlen($noComplaintNote) < 10) {
+            return $fail('Explique que não houve reclamação no mês.');
+        }
+        if (! $noComplaint && DB::table('complaint_action_plans')->where('customer_complaint_id', $complaintId)->exists()) {
             return $fail('Esta reclamação já tem um plano de ação.');
         }
+        if ($noComplaint && DB::table('complaint_action_plans')
+            ->whereNull('customer_complaint_id')
+            ->where('no_complaint_month', $noComplaintMonth)
+            ->exists()) {
+            return $fail('Este mês já foi registrado como sem reclamação.');
+        }
+
         $openedOn = $this->date($input['openedOn'] ?? null);
         if ($openedOn === null) {
             return $fail('Informe uma data válida para a abertura do plano.');
         }
-        $dueOn = $this->date($input['dueOn'] ?? null);
+        $dueOn = $noComplaint ? null : $this->date($input['dueOn'] ?? null);
         if ($dueOn !== null && $dueOn < $openedOn) {
             return $fail('O prazo previsto não pode ser anterior à abertura.');
         }
-        $employeeId = (int) ($input['employeeId'] ?? 0);
-        if ($employeeId > 0 && ! DB::table('employees')->where('id', $employeeId)->exists()) {
-            return $fail('O responsável selecionado não existe mais.');
-        }
-        $action = $this->text($input['action'] ?? '', 2000);
+        $action = $noComplaint
+            ? self::NO_COMPLAINT_ACTION
+            : $this->text($input['action'] ?? '', 2000);
         if (mb_strlen($action) < 10) {
             return $fail('Descreva a ação planejada com pelo menos 10 caracteres.');
         }
 
         return ['success' => true, 'message' => '', 'data' => [
-            'complaintId' => $complaintId,
+            'complaintId' => $noComplaint ? null : $complaintId,
+            'noComplaintMonth' => $noComplaint ? $noComplaintMonth : null,
+            'noComplaintNote' => $noComplaint ? $noComplaintNote : null,
             'openedOn' => $openedOn,
             'dueOn' => $dueOn,
-            'employeeId' => $employeeId > 0 ? $employeeId : null,
-            'rootCause' => $this->text($input['rootCause'] ?? '', 2000) ?: null,
+            'rootCause' => $noComplaint ? null : ($this->text($input['rootCause'] ?? '', 2000) ?: null),
             'action' => $action,
             'firstNote' => $this->text($input['firstNote'] ?? '', 2000) ?: null,
         ]];
@@ -365,6 +395,20 @@ final class ActionPlanService
         return $this->text($value, 2000) ?: null;
     }
 
+    private function monthStart(mixed $value): ?string
+    {
+        $value = is_string($value) ? trim($value) : '';
+        if (preg_match('/^\d{4}-\d{2}$/', $value) === 1) {
+            $value .= '-01';
+        }
+
+        $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+
+        return $parsed && $parsed->format('Y-m-d') === $value
+            ? $parsed->modify('first day of this month')->format('Y-m-d')
+            : null;
+    }
+
     private function log(int $planId, string $date, string $note, int $userId): void
     {
         DB::table('complaint_action_plan_entries')->insert([
@@ -386,7 +430,7 @@ final class ActionPlanService
         $where = $this->conditions($filters, $params);
         $rows = $this->rows(
             'SELECT p.opened_on, p.closed_on FROM complaint_action_plans p
-               JOIN customer_complaints c ON c.id = p.customer_complaint_id'
+               LEFT JOIN customer_complaints c ON c.id = p.customer_complaint_id'
             .$this->narrow($where, 'p.closed_on IS NOT NULL'),
             $params
         );

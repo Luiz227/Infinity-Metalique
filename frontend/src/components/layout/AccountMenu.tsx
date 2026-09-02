@@ -13,6 +13,8 @@ import {
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { resolveTheme, setPreference, usePreferences } from "@/lib/preferences"
+import { hasPermission } from "@/lib/navigation"
+import { navigate } from "@/lib/router"
 import type { User } from "@/types"
 
 type AccountMenuProps = {
@@ -80,6 +82,11 @@ export function AccountMenu({
   const openContact = () => {
     onOpenChange(false)
     onOpenContact()
+  }
+
+  const openDocuments = () => {
+    onOpenChange(false)
+    navigate("/documentados")
   }
 
   return (
@@ -172,11 +179,15 @@ export function AccountMenu({
             </span>
           </button>
           <PlaceholderItem icon={<BookOpen className="size-4.5" />} label="Manual de máquinas" />
-          <PlaceholderItem
-            icon={<Folder className="size-4.5" />}
-            label="Documentados"
-            description="Procedimentos, mapas, diagramas e organogramas"
-          />
+          {hasPermission(user, "documents.view") && (
+            <button className={`${menuItemClass} hover:bg-neutral-100`} type="button" onClick={openDocuments}>
+              <Folder className="size-4.5 shrink-0 text-ink-muted" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-[14px] font-medium leading-5 text-ink">Documentados</span>
+                <span className="mt-0.5 block text-[12px] leading-4 text-ink-muted">Procedimentos, mapas, diagramas e organogramas</span>
+              </span>
+            </button>
+          )}
         </div>
 
         <div className="border-t border-hairline p-2">

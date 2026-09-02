@@ -5,6 +5,7 @@ export type Route =
   | "/login"
   | "/solicitar-acesso"
   | "/sistema"
+  | "/documentados"
   | "/qualidade"
   | "/usuarios"
   | "/piperun"
@@ -28,6 +29,7 @@ const routes = new Set<Route>([
   "/login",
   "/solicitar-acesso",
   "/sistema",
+  "/documentados",
   "/qualidade",
   "/usuarios",
   "/piperun",

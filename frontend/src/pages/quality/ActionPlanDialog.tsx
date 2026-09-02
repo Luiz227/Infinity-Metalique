@@ -5,7 +5,7 @@ import { CheckCircle2, LoaderCircle, Printer, RotateCcw, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Scroller } from "@/components/ui/scroller"
 import { getJson, postJson } from "@/lib/api"
-import { formatDate, todayIso } from "@/pages/quality/format"
+import { formatDate, formatPeriod, todayIso } from "@/pages/quality/format"
 import { Field, TextArea, TextInput } from "@/pages/quality/forms/FormFields"
 import { planStatus, type ActionPlanDetail } from "@/pages/quality/types"
 
@@ -132,8 +132,9 @@ export function ActionPlanDialog({ planId, csrfToken, canWrite, onClose, onChang
             </div>
             {plan && (
               <p className="mt-1 text-xs text-ink-soft">
-                Tratativa de {plan.complaint_code ?? "-"} · {plan.client ?? "-"} ·{" "}
-                {plan.machine_type ?? "-"}{plan.model ? ` · ${plan.model}` : ""}
+                {plan.no_complaint_month
+                  ? `Registro sem reclamação · ${formatPeriod(plan.no_complaint_month.slice(0, 7))}`
+                  : `Tratativa de ${plan.complaint_code ?? "-"} · ${plan.client ?? "-"} · ${plan.machine_type ?? "-"}${plan.model ? ` · ${plan.model}` : ""}`}
               </p>
             )}
           </div>
@@ -162,12 +163,20 @@ export function ActionPlanDialog({ planId, csrfToken, canWrite, onClose, onChang
               <Row label="Prazo previsto" value={formatDate(plan.due_on)} />
               <Row label="Fechamento" value={formatDate(plan.closed_on)} />
               <Row label="Responsável" value={plan.employee} />
-              <div className="sm:col-span-2">
-                <Row label="Ocorrência relatada" value={plan.problem} />
-              </div>
-              <div className="sm:col-span-3">
-                <Row label="Causa raiz" value={plan.root_cause} />
-              </div>
+              {plan.no_complaint_month ? (
+                <div className="sm:col-span-2">
+                  <Row label="Registro do mês" value={plan.no_complaint_note} />
+                </div>
+              ) : (
+                <>
+                  <div className="sm:col-span-2">
+                    <Row label="Ocorrência relatada" value={plan.problem} />
+                  </div>
+                  <div className="sm:col-span-3">
+                    <Row label="Causa raiz" value={plan.root_cause} />
+                  </div>
+                </>
+              )}
               <div className="sm:col-span-3">
                 <Row label="Ação planejada" value={plan.action} />
               </div>

@@ -43,7 +43,11 @@ if (-not $phpExecutable -or -not (Test-Path -LiteralPath $phpExecutable)) {
     throw "PHP 8.3 ou superior nao encontrado. Instale uma versao compativel para executar o Laravel."
 }
 
-$phpOptions = @()
+$phpOptions = @(
+    "-d", "upload_max_filesize=25M",
+    "-d", "post_max_size=30M",
+    "-d", "max_execution_time=180"
+)
 foreach ($extension in @("openssl", "curl", "mbstring", "fileinfo", "pdo_mysql", "zip")) {
     & $phpExecutable -r "exit(extension_loaded('$extension') ? 0 : 1);"
     if ($LASTEXITCODE -ne 0) {

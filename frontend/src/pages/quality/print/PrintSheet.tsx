@@ -535,11 +535,21 @@ export function PrintSheet({ report, dispatch, complaint, plan, isLoading, canEd
           {!isLoading && plan && (
             <PrintDocument title="Plano de Ação" code={plan.code} date={plan.opened_on} pages={paged?.pages}>
               <section className="quality-print-details mt-5 grid grid-cols-2 gap-4">
-                <Row label="Reclamação de origem" value={plan.complaint_code} />
-                <Row label="Data da reclamação" value={sheetDate(plan.complaint_date)} />
-                <Row label="Cliente" value={plan.client} />
-                <Row label="Tipo de máquina" value={plan.machine_type} />
-                <Row label="Modelo" value={plan.model} />
+                {plan.no_complaint_month ? (
+                  <>
+                    <Row label="Tipo de registro" value="Mês sem reclamação de cliente" />
+                    <Row label="Mês de referência" value={sheetDate(plan.no_complaint_month)} />
+                    <Row label="Observação" value={plan.no_complaint_note} wide />
+                  </>
+                ) : (
+                  <>
+                    <Row label="Reclamação de origem" value={plan.complaint_code} />
+                    <Row label="Data da reclamação" value={sheetDate(plan.complaint_date)} />
+                    <Row label="Cliente" value={plan.client} />
+                    <Row label="Tipo de máquina" value={plan.machine_type} />
+                    <Row label="Modelo" value={plan.model} />
+                  </>
+                )}
                 <Row label="Responsável pela ação" value={plan.employee} />
                 <Row label="Abertura" value={sheetDate(plan.opened_on)} />
                 <Row label="Prazo previsto" value={sheetDate(plan.due_on)} />
@@ -548,8 +558,8 @@ export function PrintSheet({ report, dispatch, complaint, plan, isLoading, canEd
                   value={plan.closed_on ? `${sheetDate(plan.closed_on)}${plan.closed_by ? ` · ${plan.closed_by}` : ""}` : "Em aberto"}
                   wide
                 />
-                <Row label="Ocorrência relatada pelo cliente" value={plan.problem} wide />
-                <Row label="Causa raiz" value={plan.root_cause} wide />
+                {!plan.no_complaint_month && <Row label="Ocorrência relatada pelo cliente" value={plan.problem} wide />}
+                {!plan.no_complaint_month && <Row label="Causa raiz" value={plan.root_cause} wide />}
                 <Row label="Ação planejada" value={plan.action} wide />
               </section>
 

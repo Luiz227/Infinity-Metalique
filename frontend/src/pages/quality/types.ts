@@ -82,9 +82,11 @@ export type ActionPlanRow = {
   closed_on: string | null
   action: string | null
   root_cause: string | null
-  complaint_id: number
+  complaint_id: number | null
   complaint_code: string | null
-  complaint_date: string
+  complaint_date: string | null
+  no_complaint_month: string | null
+  no_complaint_note: string | null
   problem: string | null
   client: string | null
   machine_type: string | null

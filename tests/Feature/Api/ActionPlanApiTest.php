@@ -36,9 +36,9 @@ final class ActionPlanApiTest extends TestCase
     }
 
     /** @return array{0: User, 1: string} */
-    private function admin(): array
+    private function admin(array $attributes = []): array
     {
-        $user = User::factory()->create(['role' => 'admin']);
+        $user = User::factory()->create(['role' => 'admin'] + $attributes);
         $this->actingAs($user);
 
         return [$user, (string) $this->getJson('/backend/api/csrf.php')->json('csrfToken')];
@@ -50,7 +50,7 @@ final class ActionPlanApiTest extends TestCase
         $employeeId = DB::table('employees')->insertGetId([
             'name' => 'Responsável', 'normalized_name' => 'RESPONSAVEL', 'is_active' => true, 'created_at' => now(),
         ]);
-        [$user, $token] = $this->admin();
+        [$user, $token] = $this->admin(['name' => 'Usuário Responsável']);
 
         $planId = $this->postJson('/backend/api/quality/action-plan-create.php', [
             'csrfToken' => $token,
@@ -65,8 +65,14 @@ final class ActionPlanApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('plan.code', 'PAC01')
             ->assertJsonPath('plan.complaint_code', 'RSC01')
-            ->assertJsonPath('plan.employee', 'Responsável')
+            ->assertJsonPath('plan.employee', 'Usuário Responsável')
             ->json('plan.id');
+
+        $this->assertDatabaseHas('complaint_action_plans', [
+            'id' => $planId,
+            'employee_id' => null,
+            'created_by_user_id' => $user->id,
+        ]);
 
         // O marcador da abertura e a nota digitada são duas linhas do log: a
         // linha do tempo conta a história inteira sem depender de outra fonte.
@@ -79,6 +85,61 @@ final class ActionPlanApiTest extends TestCase
             'created_by_user_id' => $user->id,
         ]);
         $this->getJson('/backend/api/quality/revision.php')->assertJsonPath('revision', '1');
+    }
+
+    public function test_registra_mes_sem_reclamacao_com_usuario_logado_como_responsavel(): void
+    {
+        [$user, $token] = $this->admin(['name' => 'Analista da Qualidade']);
+
+        $planId = $this->postJson('/backend/api/quality/action-plan-create.php', [
+            'csrfToken' => $token,
+            'noComplaint' => true,
+            'noComplaintMonth' => '2026-08',
+            'noComplaintNote' => 'Não houve reclamação de cliente neste mês.',
+            'openedOn' => '2026-09-01',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('plan.code', 'PAC01')
+            ->assertJsonPath('plan.complaint_id', null)
+            ->assertJsonPath('plan.no_complaint_month', '2026-08-01')
+            ->assertJsonPath('plan.no_complaint_note', 'Não houve reclamação de cliente neste mês.')
+            ->assertJsonPath('plan.employee', 'Analista da Qualidade')
+            ->json('plan.id');
+
+        $this->assertDatabaseHas('complaint_action_plans', [
+            'id' => $planId,
+            'customer_complaint_id' => null,
+            'no_complaint_month' => '2026-08-01',
+            'created_by_user_id' => $user->id,
+        ]);
+        $this->getJson('/backend/api/quality/action-plans.php')
+            ->assertOk()
+            ->assertJsonPath('total', 1)
+            ->assertJsonPath('items.0.no_complaint_month', '2026-08-01')
+            ->assertJsonPath('items.0.employee', 'Analista da Qualidade');
+    }
+
+    public function test_recusa_mes_sem_reclamacao_duplicado_ou_sem_observacao(): void
+    {
+        [, $token] = $this->admin();
+        $payload = [
+            'csrfToken' => $token,
+            'noComplaint' => true,
+            'noComplaintMonth' => '2026-08',
+            'noComplaintNote' => 'Não houve reclamação de cliente neste mês.',
+            'openedOn' => '2026-09-01',
+        ];
+
+        $this->postJson('/backend/api/quality/action-plan-create.php', $payload)->assertCreated();
+        $this->postJson('/backend/api/quality/action-plan-create.php', $payload)
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Este mês já foi registrado como sem reclamação.');
+
+        $this->postJson('/backend/api/quality/action-plan-create.php', [
+            ...$payload,
+            'noComplaintMonth' => '2026-09',
+            'noComplaintNote' => '',
+        ])->assertStatus(422)->assertJsonPath('message', 'Explique que não houve reclamação no mês.');
     }
 
     public function test_recusa_segundo_plano_para_a_mesma_reclamacao(): void

@@ -19,6 +19,7 @@ use Illuminate\Support\Str;
     'email',
     'job_title',
     'sector',
+    'employee_id',
     'profile_photo',
     'profile_photo_source',
     'profile_photo_crop',
@@ -49,6 +50,7 @@ class User extends Authenticatable
         return [
             'password_hash' => 'hashed',
             'profile_photo_crop' => 'array',
+            'employee_id' => 'integer',
             'is_primary_admin' => 'boolean',
             'is_active' => 'boolean',
             'must_change_password' => 'boolean',
@@ -90,6 +92,10 @@ class User extends Authenticatable
             $permissions
         ) !== []) {
             $permissions[] = 'quality.view';
+        }
+
+        if (in_array('documents.manage', $permissions, true)) {
+            $permissions[] = 'documents.view';
         }
 
         return array_values(array_unique($permissions));
@@ -134,6 +140,7 @@ class User extends Authenticatable
             'email' => (string) $this->email,
             'job_title' => (string) $this->job_title,
             'sector' => (string) $this->sector,
+            'employee_id' => $this->employee_id === null ? null : (int) $this->employee_id,
             'role' => (string) $this->role,
             'is_primary_admin' => (bool) $this->is_primary_admin,
             'is_active' => (bool) $this->is_active,

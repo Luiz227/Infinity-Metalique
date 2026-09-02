@@ -53,12 +53,12 @@ final class ActionPlanController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        $validation = $plans->validatePlan($request->all());
+        $validation = $plans->validatePlanRequest($request->all());
         if (! $validation['success']) {
             return response()->json(['message' => $validation['message']], 422);
         }
         try {
-            $plan = $plans->create($validation['data'], (int) $user->id);
+            $plan = $plans->create($validation['data'], $user);
         } catch (QueryException) {
             return response()->json(['message' => 'Não foi possível abrir o plano de ação.'], 503);
         }

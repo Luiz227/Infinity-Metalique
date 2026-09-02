@@ -9,6 +9,8 @@ final class Permissions
     /** @var array<string, array{group: string, label: string, description: string, assignable?: bool}> */
     public const DEFINITIONS = [
         'dashboard.view' => ['group' => 'Geral', 'label' => 'Acessar Dashboard', 'description' => 'Visualizar a tela inicial do sistema.'],
+        'documents.view' => ['group' => 'Documentação', 'label' => 'Visualizar documentos', 'description' => 'Consultar e baixar procedimentos, mapas, diagramas e organogramas.'],
+        'documents.manage' => ['group' => 'Documentação', 'label' => 'Administrar documentos', 'description' => 'Editar, autorizar e excluir documentos de qualquer setor.'],
         'quality.view' => ['group' => 'Qualidade', 'assignable' => false, 'label' => 'Visualizar Qualidade', 'description' => 'Consultar indicadores, registros e documentos da Qualidade.'],
         'quality.edit' => ['group' => 'Qualidade', 'assignable' => false, 'label' => 'Editar registros da Qualidade', 'description' => 'Editar RAPs, produtos coletados e registros de satisfação, mantendo o histórico das alterações.'],
         'quality.manage' => ['group' => 'Qualidade', 'label' => 'Excluir registros da Qualidade', 'description' => 'Excluir RAPs, produtos coletados e registros de satisfação existentes.'],

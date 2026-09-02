@@ -17,6 +17,12 @@ final class UserApiTest extends TestCase
     public function test_administrador_cria_conta_com_permissoes(): void
     {
         $administrator = User::factory()->create(['role' => 'admin']);
+        $employeeId = DB::table('employees')->insertGetId([
+            'name' => 'JoÃ£o de Teste',
+            'normalized_name' => 'JOAO DE TESTE',
+            'is_active' => true,
+            'created_at' => now(),
+        ]);
         $this->actingAs($administrator);
         $csrf = $this->getJson('/backend/api/csrf.php')->json('csrfToken');
 
@@ -26,6 +32,7 @@ final class UserApiTest extends TestCase
             'email' => 'joao.teste@example.com',
             'jobTitle' => 'Inspetor',
             'sector' => 'Qualidade',
+            'employeeId' => $employeeId,
             'role' => 'user',
             'password' => 'Senha123!',
             'isActive' => true,
@@ -37,6 +44,7 @@ final class UserApiTest extends TestCase
         $this->assertTrue(Hash::check('Senha123!', (string) $user->password_hash));
         $this->assertStringStartsWith('$argon2id$', (string) $user->password_hash);
         $this->assertTrue((bool) $user->must_change_password);
+        $this->assertSame($employeeId, (int) $user->employee_id);
         $this->assertDatabaseHas('user_permissions', [
             'user_id' => $user->id,
             'permission' => 'quality.view',
@@ -53,6 +61,11 @@ final class UserApiTest extends TestCase
             'user_id' => $user->id,
             'permission' => 'sige.view',
         ]);
+
+        $this->getJson('/backend/api/admin/users.php')
+            ->assertOk()
+            ->assertJsonPath('employees.0.id', $employeeId)
+            ->assertJsonPath('users.1.employee_name', 'JoÃ£o de Teste');
     }
 
     /**

@@ -30,6 +30,10 @@ final class UserController extends Controller
                     'email' => (string) $user->email,
                     'job_title' => (string) $user->job_title,
                     'sector' => (string) $user->sector,
+                    'employee_id' => $user->employee_id === null ? null : (int) $user->employee_id,
+                    'employee_name' => $user->employee_id === null ? null : (string) DB::table('employees')
+                        ->where('id', $user->employee_id)
+                        ->value('name'),
                     'role' => (string) $user->role,
                     'is_primary_admin' => (bool) $user->is_primary_admin,
                     'is_active' => (bool) $user->is_active,
@@ -39,11 +43,24 @@ final class UserController extends Controller
                     'permissions' => $user->permissionKeys(),
                 ])
                 ->all();
+            $employees = DB::table('employees')
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name'])
+                ->map(static fn (object $employee): array => [
+                    'id' => (int) $employee->id,
+                    'name' => (string) $employee->name,
+                ])
+                ->all();
         } catch (QueryException) {
             return response()->json(['message' => 'Não foi possível carregar os usuários.'], 503);
         }
 
-        return response()->json(['users' => $users, 'permissions' => Permissions::definitions()]);
+        return response()->json([
+            'users' => $users,
+            'permissions' => Permissions::definitions(),
+            'employees' => $employees,
+        ]);
     }
 
     public function save(Request $request): JsonResponse
@@ -55,6 +72,8 @@ final class UserController extends Controller
         $email = Input::email($request->input('email'));
         $jobTitle = Input::name($request->input('jobTitle'));
         $sector = Input::name($request->input('sector'));
+        $employeeId = max(0, $request->integer('employeeId'));
+        $employeeId = $employeeId > 0 ? $employeeId : null;
         $role = (string) $request->input('role', 'user');
         $password = (string) $request->input('password', '');
         $isActive = filter_var($request->input('isActive', true), FILTER_VALIDATE_BOOL);
@@ -78,6 +97,15 @@ final class UserController extends Controller
         }
         if (! in_array($role, ['admin', 'user'], true)) {
             return response()->json(['message' => 'Escolha um tipo de conta válido.'], 422);
+        }
+        if ($employeeId !== null && ! DB::table('employees')->where('id', $employeeId)->where('is_active', true)->exists()) {
+            return response()->json(['message' => 'O colaborador selecionado nÃ£o existe mais.'], 422);
+        }
+        if ($employeeId !== null && DB::table('users')
+            ->where('employee_id', $employeeId)
+            ->when($id > 0, static fn ($query) => $query->where('id', '<>', $id))
+            ->exists()) {
+            return response()->json(['message' => 'Este colaborador jÃ¡ estÃ¡ vinculado a outra conta.'], 422);
         }
         /*
          * `users.manage` é permissão de administrar contas, não de fabricar
@@ -113,6 +141,9 @@ final class UserController extends Controller
             if (array_intersect($quality, $permissions) !== []) {
                 $permissions[] = 'quality.view';
             }
+            if (in_array('documents.manage', $permissions, true)) {
+                $permissions[] = 'documents.view';
+            }
             $permissions = array_values(array_unique($permissions));
         }
 
@@ -124,7 +155,7 @@ final class UserController extends Controller
 
         try {
             $result = DB::transaction(function () use (
-                $administrator, &$id, $name, $email, $jobTitle, $sector, $role,
+                $administrator, &$id, $name, $email, $jobTitle, $sector, $employeeId, $role,
                 $password, $isActive, $permissions, $isNew
             ): array {
                 if (! $isNew) {
@@ -156,6 +187,7 @@ final class UserController extends Controller
                         'email' => $email,
                         'job_title' => $jobTitle,
                         'sector' => $sector,
+                        'employee_id' => $employeeId,
                         'role' => $role,
                         'is_active' => $isActive,
                     ];
@@ -167,6 +199,7 @@ final class UserController extends Controller
                         'email' => $email,
                         'job_title' => $jobTitle,
                         'sector' => $sector,
+                        'employee_id' => $employeeId,
                         'password_hash' => Hash::make($password),
                         'role' => $role,
                         'is_active' => $isActive,

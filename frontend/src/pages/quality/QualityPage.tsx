@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ClipboardCheck, ClipboardList, FileUp, LoaderCircle, MessageSquarePlus, PackagePlus, Settings } from "lucide-react"
+import { ClipboardCheck, ClipboardList, Download, FileUp, LoaderCircle, MessageSquarePlus, PackagePlus, Settings } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { getJson, postJson } from "@/lib/api"
 import { QUALITY_NAVIGATION } from "@/lib/navigation"
 import { currentPreferences } from "@/lib/preferences"
@@ -63,6 +64,7 @@ const LATEST_DISPATCHES = 25
 
 type TabId = (typeof TABS)[number]["id"]
 type PrintTarget = { kind: "report" | "dispatch" | "complaint" | "plan"; id: number }
+type ExportDataset = "reports" | "dispatches" | "complaints" | "plans" | "catalogs"
 type EditTarget =
   | { kind: "report"; record: ReportDetail }
   | { kind: "dispatch"; record: DispatchDetail }
@@ -116,6 +118,9 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canCre
   const [planTarget, setPlanTarget] = useState<ComplaintRow | null>(null)
   const [openPlanId, setOpenPlanId] = useState<number | null>(null)
   const [isImportOpen, setIsImportOpen] = useState(false)
+  const [isExportOpen, setIsExportOpen] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+  const [exportDatasets, setExportDatasets] = useState<ExportDataset[]>(["reports", "dispatches", "complaints", "plans", "catalogs"])
   const [printTarget, setPrintTarget] = useState<PrintTarget | null>(null)
   const [printReport, setPrintReport] = useState<ReportDetail | null>(null)
   const [printDispatch, setPrintDispatch] = useState<DispatchDetail | null>(null)
@@ -129,6 +134,19 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canCre
   const isActionOnly = visibleTabs.length === 0 && (canCreateRap || canCreateDispatch)
   const showComplaintButton = canCreateComplaint && tab === "qualidade" && hasVisibleTab
   const showPlanButton = canCreateComplaint && tab === "planos" && hasVisibleTab
+  const exportOptions = useMemo(() => {
+    const canExportReports = permissions.some((permission) => ["quality.raps", "quality.units", "quality.products", "quality.employees", "quality.records"].includes(permission))
+    const canExportDispatches = permissions.some((permission) => ["quality.dispatches", "quality.products", "quality.employees", "quality.records"].includes(permission))
+    const canExportComplaints = permissions.some((permission) => ["quality.satisfaction", "quality.records"].includes(permission))
+    return [
+      { id: "reports", label: "RAPs", description: "Apontamentos, códigos, problemas e colaboradores.", enabled: canExportReports },
+      { id: "dispatches", label: "Produtos coletados", description: "Coletas, expedições, fotos e responsáveis.", enabled: canExportDispatches },
+      { id: "complaints", label: "Satisfação", description: "Reclamações de clientes e tratativas registradas.", enabled: canExportComplaints },
+      { id: "plans", label: "Planos de ação", description: "Aberturas, prazos, responsáveis e andamentos.", enabled: canCreateComplaint },
+      { id: "catalogs", label: "Cadastros", description: "Clientes, colaboradores, produtos, gates e códigos.", enabled: canImport || canDelete },
+    ] satisfies { id: ExportDataset; label: string; description: string; enabled: boolean }[]
+  }, [canCreateComplaint, canDelete, canImport, permissions])
+  const enabledExportOptions = exportOptions.filter((item) => item.enabled)
 
   // De onde o gráfico veio e sob qual recorte ele está: é o que a folha
   // impressa escreve no cabeçalho, e nada disso o cartão sabe sozinho.
@@ -516,6 +534,53 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canCre
     setOpenForm("plan")
   }
 
+  const toggleExportDataset = (dataset: ExportDataset) => {
+    setExportDatasets((current) => current.includes(dataset)
+      ? current.filter((item) => item !== dataset)
+      : [...current, dataset])
+  }
+
+  const exportQualityData = async () => {
+    const selected = exportDatasets.filter((dataset) => enabledExportOptions.some((option) => option.id === dataset))
+    if (selected.length === 0) {
+      setError("Selecione pelo menos um tipo de dado para exportar.")
+      return
+    }
+
+    setIsExporting(true)
+    setError("")
+    try {
+      const query = new URLSearchParams(filtersToQuery(filters).replace(/^\?/, ""))
+      query.set("datasets", selected.join(","))
+      const response = await fetch(`/backend/api/quality/export.php?${query.toString()}`, {
+        credentials: "include",
+        cache: "no-store",
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({})) as { message?: string }
+        throw new Error(payload.message || "Não foi possível exportar os dados.")
+      }
+
+      const blob = await response.blob()
+      const disposition = response.headers.get("content-disposition") || ""
+      const filename = /filename="?([^";]+)"?/i.exec(disposition)?.[1] || "qualidade.xlsx"
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      setNotice("Planilha exportada com sucesso.")
+      setIsExportOpen(false)
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Erro inesperado.")
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   const deleteRecord = async (kind: PrintTarget["kind"], id: number) => {
     setError("")
     setNotice("")
@@ -585,8 +650,16 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canCre
           </p>
         </div>
 
-        {(visibleTabs.length > 0 || canImport) && (canCreateRap || canCreateDispatch || canImport || showComplaintButton || showPlanButton) && (
+        {(visibleTabs.length > 0 || canImport) && (canCreateRap || canCreateDispatch || canImport || showComplaintButton || showPlanButton || enabledExportOptions.length > 0) && (
           <div className="flex flex-wrap gap-2">
+            {enabledExportOptions.length > 0 && (
+              <Button type="button" variant="outline" className="rounded-full" onClick={() => {
+                setExportDatasets(enabledExportOptions.map((item) => item.id))
+                setIsExportOpen(true)
+              }}>
+                <Download /> Exportar dados
+              </Button>
+            )}
             {canImport && (
               <Button type="button" variant="outline" className="rounded-full" onClick={() => setIsImportOpen(true)}>
                 <FileUp /> Importar planilha
@@ -885,6 +958,43 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canCre
           }}
         />
       )}
+
+      <Dialog open={isExportOpen} onOpenChange={(open) => { if (!isExporting) setIsExportOpen(open) }}>
+        <DialogContent className="max-w-xl" showCloseButton={!isExporting}>
+          <DialogHeader>
+            <DialogTitle>Exportar dados</DialogTitle>
+            <DialogDescription>
+              Escolha quais informações da Qualidade entram na planilha. Os filtros atuais da tela serão respeitados.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {enabledExportOptions.map((option) => {
+              const checked = exportDatasets.includes(option.id)
+              return (
+                <label
+                  key={option.id}
+                  className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+                    checked ? "border-metalique/35 bg-red-50/70" : "border-hairline bg-white hover:border-hairline-strong"
+                  }`}
+                >
+                  <input className="mt-0.5 size-4 accent-[#db0f0f]" type="checkbox" checked={checked} onChange={() => toggleExportDataset(option.id)} />
+                  <span>
+                    <span className="block text-sm font-medium">{option.label}</span>
+                    <span className="mt-0.5 block text-xs leading-relaxed text-ink-muted">{option.description}</span>
+                  </span>
+                </label>
+              )
+            })}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" type="button" disabled={isExporting} onClick={() => setIsExportOpen(false)}>Cancelar</Button>
+            <Button type="button" disabled={isExporting || exportDatasets.length === 0} onClick={() => void exportQualityData()}>
+              {isExporting ? <LoaderCircle className="animate-spin" /> : <Download />}
+              {isExporting ? "Exportando..." : "Baixar planilha"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {printTarget && (
         <PrintSheet

@@ -60,6 +60,7 @@ export function AppHeader({ user, csrfToken, active, onUserUpdated, onLogout }: 
     && Array.isArray(user.permissions)
     && user.permissions.includes("quality.view")
     && !user.permissions.includes("dashboard.view")
+    && !user.permissions.includes("documents.view")
     && !user.permissions.includes("users.manage")
     && !user.permissions.includes("piperun.view")
     && !user.permissions.includes("sige.view")

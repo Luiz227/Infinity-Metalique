@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'onlyoffice' => [
+        'url' => rtrim(env('ONLYOFFICE_URL', rtrim(env('APP_URL', 'http://localhost'), '/').'/onlyoffice'), '/'),
+        'internal_url' => rtrim(env('ONLYOFFICE_INTERNAL_URL', 'http://onlyoffice'), '/'),
+        'storage_url' => rtrim(env('ONLYOFFICE_STORAGE_URL', env('APP_URL', 'http://localhost')), '/'),
+        'jwt_secret' => env('ONLYOFFICE_JWT_SECRET', ''),
+    ],
+
 ];

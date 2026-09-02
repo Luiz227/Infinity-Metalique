@@ -26,6 +26,7 @@ DB_DATABASE=infinity_metalique
 DB_USERNAME=infinity
 DB_PASSWORD=UMA_SENHA_FORTE_E_EXCLUSIVA
 DB_ROOT_PASSWORD=OUTRA_SENHA_FORTE_E_EXCLUSIVA
+ONLYOFFICE_JWT_SECRET=UMA_CHAVE_ALEATORIA_FORTE_SEM_CIFRAO
 ```
 
 Gere `APP_KEY` localmente, sem enviar a chave em mensagens ou ao Git:
@@ -41,6 +42,8 @@ php artisan key:generate --show
 3. Ative HTTPS. O Easypanel emitira e renovara o certificado automaticamente.
 4. Nao publique portas do `backend` nem do `database` na internet.
 5. Abra `https://infinity.empresa.com.br` e teste login, upload de foto e importacao de planilha.
+
+O Compose tambem inicia o ONLYOFFICE Document Server. Reserve pelo menos 4 GB de RAM na VPS para o editor e use a mesma `ONLYOFFICE_JWT_SECRET` no backend e no servico do editor (o Compose ja faz essa ligacao).
 
 Na primeira inicializacao, o backend aguarda o MariaDB e executa as migrations automaticamente.
 

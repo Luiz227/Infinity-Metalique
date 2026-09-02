@@ -16,6 +16,8 @@ type ManagedUser = {
   email: string
   job_title: string
   sector: string
+  employee_id: number | null
+  employee_name: string | null
   role: "admin" | "user"
   is_primary_admin: boolean
   is_active: boolean
@@ -24,6 +26,8 @@ type ManagedUser = {
   created_at: string
   permissions: PermissionKey[]
 }
+
+type EmployeeOption = { id: number; name: string }
 
 type PermissionDefinition = {
   key: PermissionKey
@@ -36,6 +40,7 @@ type PermissionDefinition = {
 type UsersPayload = {
   users: ManagedUser[]
   permissions: PermissionDefinition[]
+  employees: EmployeeOption[]
 }
 
 type UserForm = {
@@ -44,6 +49,7 @@ type UserForm = {
   email: string
   jobTitle: string
   sector: string
+  employeeId: number | null
   role: "admin" | "user"
   password: string
   isActive: boolean
@@ -56,6 +62,7 @@ const emptyForm: UserForm = {
   email: "",
   jobTitle: "",
   sector: "",
+  employeeId: null,
   role: "user",
   password: "",
   isActive: true,
@@ -91,6 +98,7 @@ function initials(name: string): string {
 
 export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; currentUserId: number }) {
   const [users, setUsers] = useState<ManagedUser[]>([])
+  const [employees, setEmployees] = useState<EmployeeOption[]>([])
   const [permissionDefinitions, setPermissionDefinitions] = useState<PermissionDefinition[]>([])
   const [form, setForm] = useState<UserForm | null>(null)
   const [showPassword, setShowPassword] = useState(false)
@@ -108,6 +116,7 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
     try {
       const payload = await getJson<UsersPayload>("/backend/api/admin/users.php")
       setUsers(payload.users)
+      setEmployees(payload.employees || [])
       setPermissionDefinitions(payload.permissions)
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Erro inesperado.")
@@ -129,6 +138,7 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
       email: user.email,
       jobTitle: user.job_title,
       sector: user.sector,
+      employeeId: user.employee_id,
       role: user.role,
       password: "",
       isActive: user.is_active,
@@ -144,6 +154,7 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
 
       if (selected) {
         next.delete(permission)
+        if (permission === "documents.view") next.delete("documents.manage")
         if (permission === "quality.view") {
           QUALITY_ACTION_KEYS.forEach((item) => next.delete(item))
           QUALITY_SECTION_KEYS.forEach((item) => next.delete(item))
@@ -154,6 +165,7 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
         }
       } else {
         next.add(permission)
+        if (permission === "documents.manage") next.add("documents.view")
         if (QUALITY_SECTION_KEYS.includes(permission)) {
           next.add("quality.view")
         }
@@ -265,12 +277,13 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
           <div className="grid h-56 place-items-center text-ink-muted"><LoaderCircle className="size-7 animate-spin" aria-label="Carregando usuários" /></div>
         ) : (
           <Scroller className="overflow-x-auto" options={HORIZONTAL_TABLE}>
-            <table className="w-full min-w-[920px] border-collapse text-left text-sm">
+            <table className="w-full min-w-[1080px] border-collapse text-left text-sm">
               <thead className="border-b border-hairline bg-[#f7f7f6] text-xs uppercase text-ink-muted">
                 <tr>
                   <th className="px-5 py-4 font-medium">Usuário</th>
                   <th className="px-5 py-4 font-medium">Cargo</th>
                   <th className="px-5 py-4 font-medium">Setor</th>
+                  <th className="px-5 py-4 font-medium">Colaborador</th>
                   <th className="px-5 py-4 font-medium">Tipo</th>
                   <th className="px-5 py-4 font-medium">Permissões</th>
                   <th className="px-5 py-4 font-medium">Status</th>
@@ -295,6 +308,7 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
                       </td>
                       <td className="px-5 py-4 text-ink-soft">{user.job_title}</td>
                       <td className="px-5 py-4 text-ink-soft">{user.sector}</td>
+                      <td className="px-5 py-4 text-ink-soft">{user.employee_name || "-"}</td>
                       <td className="px-5 py-4">
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium">
                           {user.role === "admin" && <ShieldCheck className="size-3.5 text-metalique" />}
@@ -391,6 +405,19 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
                 </div>
                 <label className="text-sm font-medium">E-mail
                   <input className="mt-1.5 h-11 w-full rounded-md border border-hairline-strong px-3 outline-none focus:border-metalique" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required maxLength={254} />
+                </label>
+                <label className="text-sm font-medium">Colaborador vinculado
+                  <select
+                    className="mt-1.5 h-11 w-full rounded-md border border-hairline-strong bg-white px-3 outline-none focus:border-metalique"
+                    value={form.employeeId ?? ""}
+                    onChange={(event) => setForm({ ...form, employeeId: event.target.value ? Number(event.target.value) : null })}
+                  >
+                    <option value="">Sem vínculo</option>
+                    {employees.map((employee) => (
+                      <option key={employee.id} value={employee.id}>{employee.name}</option>
+                    ))}
+                  </select>
+                  <span className="mt-1.5 block text-xs font-normal text-ink-muted">Use quando a conta representa um colaborador já cadastrado na Qualidade.</span>
                 </label>
                 <label className="text-sm font-medium">Tipo de conta
                   <select className="mt-1.5 h-11 w-full rounded-md border border-hairline-strong bg-white px-3 outline-none focus:border-metalique" value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value as UserForm["role"] })}>

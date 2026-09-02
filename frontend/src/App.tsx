@@ -9,6 +9,7 @@ import { clearRememberedUser, readRememberedUser, writeRememberedUser } from "@/
 import { closeAuthModal, type Route, currentRoute, navigate, replaceAuthModal } from "@/lib/router"
 import { scrollElementTo } from "@/lib/smoothScroll"
 import { DashboardPage } from "@/pages/dashboard/DashboardPage"
+import { DocumentsPage } from "@/pages/documents/DocumentsPage"
 import { HomePage } from "@/pages/home/HomePage"
 import { LoginPage } from "@/pages/login/LoginPage"
 import { RequiredPasswordChangePage } from "@/pages/password-change/RequiredPasswordChangePage"
@@ -19,9 +20,10 @@ import { UsersPage } from "@/pages/users/UsersPage"
 import type { ApiResponse, HomeSummary, PermissionKey, User } from "@/types"
 
 /** Rotas que vivem dentro da moldura vermelha e exigem sessão. */
-const INTERNAL_ROUTES: Route[] = ["/sistema", "/qualidade", "/usuarios", "/piperun", "/sige"]
+const INTERNAL_ROUTES: Route[] = ["/sistema", "/qualidade", "/documentados", "/usuarios", "/piperun", "/sige"]
 const ROUTE_PERMISSIONS: Partial<Record<Route, PermissionKey>> = {
   "/sistema": "dashboard.view",
+  "/documentados": "documents.view",
   "/qualidade": "quality.view",
   "/usuarios": "users.manage",
   "/piperun": "piperun.view",
@@ -54,6 +56,7 @@ function isQualityOnlyAccount(user: User): boolean {
   return user.role !== "admin"
     && user.permissions.includes("quality.view")
     && !user.permissions.includes("dashboard.view")
+    && !user.permissions.includes("documents.view")
     && !user.permissions.includes("users.manage")
     && !user.permissions.includes("piperun.view")
     && !user.permissions.includes("sige.view")
@@ -197,6 +200,7 @@ function App() {
       "/login": "Login | Metalique Infinity",
       "/solicitar-acesso": "Solicitar acesso | Metalique Infinity",
       "/sistema": "Dashboard | Metalique Infinity",
+      "/documentados": "Documentados | Metalique Infinity",
       "/qualidade": "Qualidade | Metalique Infinity",
       "/usuarios": "Usuários | Metalique Infinity",
       "/piperun": "PipeRun | Metalique Infinity",
@@ -242,7 +246,7 @@ function App() {
           user={user}
           csrfToken={csrfToken}
           active={route}
-          embedded={route === "/piperun" || route === "/sige"}
+          embedded={route === "/piperun" || route === "/sige" || route === "/documentados"}
           scrollRef={panelRef}
           onUserUpdated={setUser}
           onLogout={(renewedCsrfToken) => {
@@ -280,6 +284,12 @@ function App() {
               )}
               {route === "/usuarios" && <UsersPage csrfToken={csrfToken} currentUserId={user.id} />}
               {route === "/sistema" && <DashboardPage />}
+              {route === "/documentados" && (
+                <DocumentsPage
+                  csrfToken={csrfToken}
+                  user={user}
+                />
+              )}
               {route === "/piperun" && <ExternalAppPage appId="piperun" name="PipeRun" />}
               {route === "/sige" && <ExternalAppPage appId="sige" name="SIGE" />}
             </motion.div>

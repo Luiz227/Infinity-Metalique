@@ -2,7 +2,7 @@ import { useState } from "react"
 
 import { Scroller } from "@/components/ui/scroller"
 import { StatTile } from "@/pages/quality/charts/StatTile"
-import { formatDate } from "@/pages/quality/format"
+import { formatDate, formatPeriod } from "@/pages/quality/format"
 import {
   RecordDeleteDialog,
   type DeleteResult,
@@ -114,8 +114,12 @@ export function ActionPlansSection({
             onSelectDelete={setDeleteTarget}
             cells={(row) => [
               row.code,
-              <span title={row.problem ?? undefined}>{row.complaint_code ?? "-"}</span>,
-              <span className="text-ink">{row.client ?? "-"}</span>,
+              <span title={row.problem ?? row.no_complaint_note ?? undefined}>
+                {row.complaint_code ?? "Sem reclamação"}
+              </span>,
+              <span className="text-ink">
+                {row.no_complaint_month ? formatPeriod(row.no_complaint_month.slice(0, 7)) : row.client ?? "-"}
+              </span>,
               `${row.machine_type ?? "-"}${row.model ? ` · ${row.model}` : ""}`,
               <Free value={row.employee} />,
               formatDate(row.opened_on),

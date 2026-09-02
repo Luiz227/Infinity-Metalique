@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\QualityExportService;
 use App\Services\QualityImportService;
 use App\Services\QualityService;
 use App\Services\UploadService;
@@ -69,6 +70,65 @@ final class QualityController extends Controller
         } catch (QueryException) {
             return response()->json(['message' => 'Não foi possível carregar o histórico de importações.'], 503);
         }
+    }
+
+    public function export(Request $request, QualityService $quality, QualityExportService $exports)
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $requested = $request->query('datasets', 'all');
+        $datasets = is_string($requested)
+            ? array_values(array_filter(array_map('trim', explode(',', $requested))))
+            : [];
+        if ($datasets === [] || in_array('all', $datasets, true)) {
+            $datasets = QualityExportService::DATASETS;
+        }
+
+        $allowed = $this->exportableDatasets($user);
+        $datasets = array_values(array_intersect($datasets, $allowed));
+        if ($datasets === []) {
+            return response()->json(['message' => 'VocÃª nÃ£o tem permissÃ£o para exportar estes dados.'], 403);
+        }
+
+        try {
+            $path = $exports->export($datasets, $quality->filters($request->query()));
+        } catch (InvalidArgumentException $error) {
+            return response()->json(['message' => $error->getMessage()], 422);
+        } catch (QueryException) {
+            return response()->json(['message' => 'NÃ£o foi possÃ­vel exportar os dados da Qualidade.'], 503);
+        }
+
+        $filename = 'qualidade-'.now()->format('Ymd-His').'.xlsx';
+
+        return response()->download($path, $filename)->deleteFileAfterSend(true);
+    }
+
+    /** @return list<string> */
+    private function exportableDatasets(User $user): array
+    {
+        if ($user->role === 'admin') {
+            return QualityExportService::DATASETS;
+        }
+
+        $permissions = $user->permissionKeys();
+        $datasets = [];
+        if (array_intersect($permissions, ['quality.raps', 'quality.units', 'quality.products', 'quality.employees', 'quality.records'])) {
+            $datasets[] = 'reports';
+        }
+        if (array_intersect($permissions, ['quality.dispatches', 'quality.products', 'quality.employees', 'quality.records'])) {
+            $datasets[] = 'dispatches';
+        }
+        if (array_intersect($permissions, ['quality.satisfaction', 'quality.records'])) {
+            $datasets[] = 'complaints';
+        }
+        if (in_array('quality.create_complaint', $permissions, true)) {
+            $datasets[] = 'plans';
+        }
+        if (in_array('quality.import', $permissions, true) || in_array('quality.manage', $permissions, true)) {
+            $datasets[] = 'catalogs';
+        }
+
+        return array_values(array_unique($datasets));
     }
 
     public function options(QualityService $quality): JsonResponse

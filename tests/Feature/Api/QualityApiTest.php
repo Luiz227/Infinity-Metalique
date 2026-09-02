@@ -10,6 +10,7 @@ use App\Support\QualityRevision;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Tests\TestCase;
@@ -209,6 +210,55 @@ final class QualityApiTest extends TestCase
 
             $this->assertSame(0, $secondPreview->json('summary.groups.0.added'));
             $this->assertSame(1, $secondPreview->json('summary.groups.0.updated'));
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    public function test_exporta_dados_da_qualidade_em_planilha(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+        $machineTypeId = DB::table('machine_types')->insertGetId(['name' => 'LASER']);
+        $qualityCodeId = DB::table('quality_codes')->insertGetId([
+            'code' => 'COD 1', 'description' => 'Montagem incorreta', 'position' => 1,
+        ]);
+        $employeeId = DB::table('employees')->insertGetId([
+            'name' => 'Maria Teste',
+            'normalized_name' => 'MARIA TESTE',
+            'is_active' => true,
+            'created_at' => now(),
+        ]);
+        $quality = app(QualityService::class);
+        $quality->createReport([
+            'reportDate' => '2026-08-13',
+            'actionType' => 'RNC',
+            'client' => 'Cliente Teste',
+            'machineTypeId' => $machineTypeId,
+            'model' => 'Modelo 1',
+            'shed' => 'B1',
+            'sector' => 'QUALIDADE',
+            'gate' => 'GATE 1',
+            'problemType' => 'MECÃ‚NICO',
+            'qualityCodeId' => $qualityCodeId,
+            'description' => 'DescriÃ§Ã£o completa do problema.',
+            'needsChecklistUpdate' => false,
+            'checklistChange' => null,
+            'immediateAction' => 'AÃ§Ã£o imediata',
+            'employeeIds' => [$employeeId],
+        ], (int) $user->id);
+
+        $this->actingAs($user);
+        $response = $this->get('/backend/api/quality/export.php?datasets=reports,catalogs')
+            ->assertOk();
+
+        $path = tempnam(sys_get_temp_dir(), 'quality-export-test-').'.xlsx';
+        file_put_contents($path, $response->streamedContent());
+
+        try {
+            $workbook = IOFactory::load($path);
+            $this->assertSame(['RAPs', 'Catalogos - Codigos', 'Catalogos - Colaboradores', 'Catalogos - Produtos', 'Catalogos - Clientes'], $workbook->getSheetNames());
+            $this->assertSame('RAP01', $workbook->getSheetByName('RAPs')?->getCell('A2')->getValue());
+            $this->assertSame('Maria Teste', $workbook->getSheetByName('RAPs')?->getCell('Q2')->getValue());
         } finally {
             @unlink($path);
         }

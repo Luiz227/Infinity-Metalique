@@ -3,6 +3,8 @@ import type { AccountPreferences } from "@/lib/preferences"
 
 export type PermissionKey =
   | "dashboard.view"
+  | "documents.view"
+  | "documents.manage"
   | "quality.view"
   | "quality.edit"
   | "quality.manage"
@@ -29,6 +31,7 @@ export type User = {
   email: string
   job_title: string
   sector: string
+  employee_id: number | null
   role: "admin" | "user"
   is_primary_admin: boolean
   is_active: boolean

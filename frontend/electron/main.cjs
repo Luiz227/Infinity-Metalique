@@ -70,6 +70,35 @@ function normalizeHttpUrl(value, fallback) {
   }
 }
 
+function isLoopbackUrl(value) {
+  try {
+    const hostname = new URL(String(value || "")).hostname.toLowerCase()
+    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1"
+  } catch {
+    return false
+  }
+}
+
+function migrateLoopbackConfig(storedConfig, bundledConfig, configPath) {
+  if (!storedConfig) return storedConfig
+
+  let changed = false
+  const migratedConfig = { ...storedConfig }
+
+  for (const key of ["frontendUrl", "backendUrl", "updateUrl"]) {
+    if (isLoopbackUrl(migratedConfig[key]) && !isLoopbackUrl(bundledConfig[key])) {
+      migratedConfig[key] = bundledConfig[key]
+      changed = true
+    }
+  }
+
+  if (changed) {
+    fs.writeFileSync(configPath, `${JSON.stringify(migratedConfig, null, 2)}\n`, "utf8")
+  }
+
+  return migratedConfig
+}
+
 function loadServerConfig() {
   const configPath = path.join(app.getPath("userData"), "server.config.json")
   let bundledConfig = DEFAULT_SERVER_CONFIG
@@ -83,6 +112,7 @@ function loadServerConfig() {
 
     if (fs.existsSync(configPath)) {
       storedConfig = JSON.parse(fs.readFileSync(configPath, "utf8"))
+      storedConfig = migrateLoopbackConfig(storedConfig, bundledConfig, configPath)
     } else {
       fs.mkdirSync(path.dirname(configPath), { recursive: true })
       fs.writeFileSync(configPath, `${JSON.stringify(bundledConfig, null, 2)}\n`, "utf8")
@@ -260,7 +290,7 @@ function connectionErrorPage(errorDescription) {
       <body>
         <main>
           <h1>Servidor indisponível</h1>
-          <p>Confirme se o Live Share está ativo e compartilhando a porta 5173.</p>
+          <p>Verifique sua conexão com a internet e tente acessar o sistema novamente.</p>
           <code>${safeInfinityUrl}</code>
           <p>${safeDescription}</p>
           <button type="button" onclick='location.href=${JSON.stringify(infinityUrl)}'>Tentar novamente</button>

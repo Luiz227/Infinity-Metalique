@@ -31,9 +31,11 @@ export function ActionPlanForm({ csrfToken, options, complaint = null, onClose, 
   const [model, setModel] = useState("")
   const [candidates, setCandidates] = useState<ComplaintRow[] | null>(null)
   const [selected, setSelected] = useState<ComplaintRow | null>(complaint)
+  const [noComplaint, setNoComplaint] = useState(false)
+  const [noComplaintMonth, setNoComplaintMonth] = useState(todayIso().slice(0, 7))
+  const [noComplaintNote, setNoComplaintNote] = useState("Não houve reclamação de cliente neste mês.")
   const [openedOn, setOpenedOn] = useState(todayIso)
   const [dueOn, setDueOn] = useState("")
-  const [employeeId, setEmployeeId] = useState("")
   const [rootCause, setRootCause] = useState("")
   const [action, setAction] = useState("")
   const [firstNote, setFirstNote] = useState("")
@@ -50,7 +52,7 @@ export function ActionPlanForm({ csrfToken, options, complaint = null, onClose, 
   const hasSearch = clientId !== "" || machineTypeId !== "" || model !== ""
 
   useEffect(() => {
-    if (selected || !hasSearch) {
+    if (noComplaint || selected || !hasSearch) {
       setCandidates(null)
       return
     }
@@ -73,11 +75,11 @@ export function ActionPlanForm({ csrfToken, options, complaint = null, onClose, 
       })
 
     return () => controller.abort()
-  }, [clientId, hasSearch, machineTypeId, model, selected])
+  }, [clientId, hasSearch, machineTypeId, model, noComplaint, selected])
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!selected) {
+    if (!noComplaint && !selected) {
       setError("Escolha a reclamação que este plano vai tratar.")
       return
     }
@@ -90,10 +92,12 @@ export function ActionPlanForm({ csrfToken, options, complaint = null, onClose, 
         "/backend/api/quality/action-plan-create.php",
         {
           csrfToken,
-          complaintId: selected.id,
+          noComplaint,
+          complaintId: noComplaint ? null : selected?.id,
+          noComplaintMonth,
+          noComplaintNote,
           openedOn,
           dueOn: dueOn || null,
-          employeeId: employeeId ? Number(employeeId) : null,
           rootCause,
           action,
           firstNote,
@@ -120,7 +124,7 @@ export function ActionPlanForm({ csrfToken, options, complaint = null, onClose, 
           <div>
             <h2 id="action-plan-form-title" className="text-xl font-semibold">Abrir plano de ação</h2>
             <p className="mt-1 text-xs text-ink-soft">
-              O número PAC é gerado na gravação. O fechamento é lançado depois, quando a ação terminar.
+              O número PAC é gerado na gravação. O responsável será o usuário que está abrindo este registro.
             </p>
           </div>
           <Button variant="ghost" size="icon" type="button" onClick={onClose} aria-label="Fechar"><X /></Button>
@@ -129,7 +133,26 @@ export function ActionPlanForm({ csrfToken, options, complaint = null, onClose, 
         {error && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700" role="alert">{error}</p>}
 
         <fieldset className="mt-5 grid gap-4" disabled={isSaving}>
-          <div className="rounded-lg border border-hairline p-4">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              className={`rounded-lg border p-3 text-left transition-colors ${!noComplaint ? "border-metalique/40 bg-red-50 text-ink" : "border-hairline bg-white text-ink-soft hover:border-hairline-strong"}`}
+              onClick={() => setNoComplaint(false)}
+            >
+              <span className="block text-sm font-semibold">Tratar reclamação</span>
+              <span className="mt-0.5 block text-xs">Abrir PAC para uma reclamação de cliente existente.</span>
+            </button>
+            <button
+              type="button"
+              className={`rounded-lg border p-3 text-left transition-colors ${noComplaint ? "border-metalique/40 bg-red-50 text-ink" : "border-hairline bg-white text-ink-soft hover:border-hairline-strong"}`}
+              onClick={() => { setNoComplaint(true); setSelected(null); setAction("") }}
+            >
+              <span className="block text-sm font-semibold">Mês sem reclamação</span>
+              <span className="mt-0.5 block text-xs">Registrar que não houve reclamação no mês.</span>
+            </button>
+          </div>
+
+          {!noComplaint && <div className="rounded-lg border border-hairline p-4">
             <h3 className="text-sm font-semibold text-ink">Reclamação a tratar</h3>
 
             {selected ? (
@@ -217,42 +240,52 @@ export function ActionPlanForm({ csrfToken, options, complaint = null, onClose, 
                         {item.code} · {formatDate(item.complaint_date)} · {item.client ?? "-"}
                       </span>
                       <span className="text-xs text-ink-soft">
-                        {item.machine_type ?? "-"}{item.model ? ` · ${item.model}` : ""} — {item.problem ?? "-"}
+                        {item.machine_type ?? "-"}{item.model ? ` · ${item.model}` : ""} - {item.problem ?? "-"}
                       </span>
                     </button>
                   ))}
                 </div>
               </>
             )}
-          </div>
+          </div>}
 
-          <div className="grid gap-4 sm:grid-cols-3">
+          {noComplaint && (
+            <div className="rounded-lg border border-hairline p-4">
+              <h3 className="text-sm font-semibold text-ink">Registro do mês</h3>
+              <div className="mt-3 grid gap-4 sm:grid-cols-[180px_1fr]">
+                <Field label="Mês" required>
+                  <TextInput type="month" value={noComplaintMonth} onChange={(event) => setNoComplaintMonth(event.target.value)} required />
+                </Field>
+                <Field label="Observação" required>
+                  <TextInput value={noComplaintNote} onChange={(event) => setNoComplaintNote(event.target.value)} required />
+                </Field>
+              </div>
+            </div>
+          )}
+
+          <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Data de abertura" required>
               <TextInput type="date" value={openedOn} onChange={(event) => setOpenedOn(event.target.value)} required />
             </Field>
 
-            <Field label="Prazo previsto" hint="Vencido e sem fechamento, o plano conta como atrasado.">
-              <TextInput type="date" value={dueOn} min={openedOn} onChange={(event) => setDueOn(event.target.value)} />
-            </Field>
-
-            <Field label="Responsável">
-              <SelectField
-                ariaLabel="Responsável pela ação"
-                placeholder="Sem responsável"
-                value={employeeId}
-                onValueChange={setEmployeeId}
-                options={options.employees.map((item) => ({ value: String(item.id), label: item.name }))}
-              />
-            </Field>
+            {!noComplaint && (
+              <Field label="Prazo previsto" hint="Vencido e sem fechamento, o plano conta como atrasado.">
+                <TextInput type="date" value={dueOn} min={openedOn} onChange={(event) => setDueOn(event.target.value)} />
+              </Field>
+            )}
           </div>
 
-          <Field label="Causa raiz">
-            <TextArea value={rootCause} onChange={(event) => setRootCause(event.target.value)} />
-          </Field>
+          {!noComplaint && (
+            <>
+              <Field label="Causa raiz">
+                <TextArea value={rootCause} onChange={(event) => setRootCause(event.target.value)} />
+              </Field>
 
-          <Field label="Ação planejada" required hint="Mínimo de 10 caracteres.">
-            <TextArea value={action} onChange={(event) => setAction(event.target.value)} required />
-          </Field>
+              <Field label="Ação planejada" required hint="Mínimo de 10 caracteres.">
+                <TextArea value={action} onChange={(event) => setAction(event.target.value)} required />
+              </Field>
+            </>
+          )}
 
           <Field label="Primeiro andamento" hint="Opcional. Entra no log com a data de abertura.">
             <TextArea value={firstNote} onChange={(event) => setFirstNote(event.target.value)} />
@@ -263,7 +296,7 @@ export function ActionPlanForm({ csrfToken, options, complaint = null, onClose, 
           <Button type="button" variant="outline" className="rounded-full" onClick={onClose} disabled={isSaving}>
             Cancelar
           </Button>
-          <Button type="submit" className="rounded-full" disabled={isSaving || !selected}>
+          <Button type="submit" className="rounded-full" disabled={isSaving || (!noComplaint && !selected)}>
             {isSaving && <LoaderCircle className="animate-spin" />}
             {isSaving ? "Abrindo..." : "Abrir plano"}
           </Button>
