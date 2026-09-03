@@ -45,9 +45,11 @@ export function ReportsSection({
   perPage,
   canDelete,
   permissions,
+  kind,
   onReportsPageChange,
   onDispatchesPageChange,
   onComplaintsPageChange,
+  onKindChange,
   onPerPageChange,
   onPrint,
   onPrintDispatch,
@@ -64,9 +66,11 @@ export function ReportsSection({
   perPage: number
   canDelete: boolean
   permissions: PermissionKey[]
+  kind: RecordKind
   onReportsPageChange: (page: number) => void
   onDispatchesPageChange: (page: number) => void
   onComplaintsPageChange: (page: number) => void
+  onKindChange: (kind: RecordKind) => void
   onPerPageChange: (perPage: number) => void
   onPrint: (id: number) => void
   onPrintDispatch: (id: number) => void
@@ -76,7 +80,6 @@ export function ReportsSection({
   onDelete: (kind: RecordKind, id: number) => Promise<DeleteResult>
 }) {
   const [deleteTarget, setDeleteTarget] = useState<RecordTarget | null>(null)
-  const [kind, setKind] = useState<RecordKind>("report")
 
   // A satisfação segue a mesma permissão da aba homônima: quem não enxerga a
   // aba também não a encontra por aqui.
@@ -90,8 +93,8 @@ export function ReportsSection({
   ]
 
   useEffect(() => {
-    if (kind === "complaint" && !canSeeSatisfaction) setKind("report")
-  }, [canSeeSatisfaction, kind])
+    if (kind === "complaint" && !canSeeSatisfaction) onKindChange("report")
+  }, [canSeeSatisfaction, kind, onKindChange])
 
   const current = views.find((view) => view.id === kind) ?? views[0]
   const records = kind === "report" ? reports : kind === "dispatch" ? dispatches : complaints
@@ -105,7 +108,7 @@ export function ReportsSection({
       <section className="rounded-card border border-hairline bg-surface p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <Select value={kind} onValueChange={(value) => setKind(value as RecordKind)}>
+            <Select value={kind} onValueChange={(value) => onKindChange(value as RecordKind)}>
               <SelectTrigger aria-label="Tipo de registro" className="h-9 w-auto text-[15px] font-semibold">
                 <SelectValue />
               </SelectTrigger>

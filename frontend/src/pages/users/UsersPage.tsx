@@ -146,6 +146,19 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
     })
   }
 
+  const selectEmployee = (employeeId: number | null) => {
+    setForm((current) => {
+      if (!current) return current
+      const employee = employeeId === null ? null : employees.find((item) => Number(item.id) === employeeId)
+
+      return {
+        ...current,
+        employeeId,
+        name: employee ? employee.name : current.name,
+      }
+    })
+  }
+
   const togglePermission = (permission: PermissionKey) => {
     setForm((current) => {
       if (!current) return current
@@ -410,7 +423,7 @@ export function UsersPage({ csrfToken, currentUserId }: { csrfToken: string; cur
                   <select
                     className="mt-1.5 h-11 w-full rounded-md border border-hairline-strong bg-white px-3 outline-none focus:border-metalique"
                     value={form.employeeId ?? ""}
-                    onChange={(event) => setForm({ ...form, employeeId: event.target.value ? Number(event.target.value) : null })}
+                    onChange={(event) => selectEmployee(event.target.value ? Number(event.target.value) : null)}
                   >
                     <option value="">Sem vínculo</option>
                     {employees.map((employee) => (

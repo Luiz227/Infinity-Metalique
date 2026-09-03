@@ -30,7 +30,7 @@ const employeeSlots = (ids: number[] = []): (number | null)[] => (
   Array.from({ length: 3 }, (_, index) => ids[index] ?? null)
 )
 
-/** Relatório de Produto Coletado (seção 5.2): exige no mínimo duas fotos do carregamento. */
+/** Produto Coletado: exige no mínimo uma foto do carregamento. */
 export function DispatchForm({ csrfToken, options, onClose, onCreated, inline = false, initial }: {
   csrfToken: string
   options: QualityOptions
@@ -124,8 +124,8 @@ export function DispatchForm({ csrfToken, options, onClose, onCreated, inline = 
     event.preventDefault()
 
     // Fotos retidas e novas formam um conjunto só para os limites da coleta.
-    if (photos.length < 2) {
-      setError("Envie pelo menos duas fotos do carregamento.")
+    if (photos.length < 1) {
+      setError("Envie pelo menos uma foto do carregamento.")
       return
     }
     if (photos.length > 6) {
@@ -247,7 +247,7 @@ export function DispatchForm({ csrfToken, options, onClose, onCreated, inline = 
           </div>
 
           <div className="sm:col-span-2">
-            <Field label="Fotos do carregamento" required hint="Adicione uma por vez. Mínimo de duas, máximo de seis; até 5 MB cada.">
+            <Field label="Fotos do carregamento" required hint="Adicione uma por vez. Mínimo de uma, máximo de seis; até 5 MB cada.">
               <label className={`inline-flex items-center gap-2 rounded-full border border-metalique px-4 py-2 text-sm font-semibold text-metalique ${photos.length >= 6 ? "cursor-not-allowed opacity-40" : "cursor-pointer hover:bg-red-50"}`}>
                 <ImagePlus className="size-4" aria-hidden="true" />
                 {photos.length >= 6 ? "Limite atingido" : "Adicionar uma foto"}

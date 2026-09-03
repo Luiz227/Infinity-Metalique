@@ -95,7 +95,7 @@ Permitir que usuarios autorizados do setor de qualidade acompanhem indicadores, 
    - Fotos do carregamento.
    - Acao imediata, quando houver.
    - Necessidade de alterar o formulario de coleta e a alteracao necessaria, quando houver.
-4. O usuario adiciona no minimo 2 e no maximo 6 fotos do carregamento.
+4. O usuario adiciona no minimo 1 e no maximo 6 fotos do carregamento.
 5. O usuario envia o formulario.
 6. O sistema valida CSRF, permissao, campos obrigatorios e quantidade de fotos.
 7. O sistema valida e armazena as imagens.
@@ -238,7 +238,7 @@ Permitir que usuarios autorizados do setor de qualidade acompanhem indicadores, 
 - A descricao do RAP deve ter conteudo suficiente para caracterizar a ocorrencia.
 - O RAP deve possuir ao menos um colaborador envolvido.
 - O Produto Coletado deve possuir ao menos um colaborador responsavel.
-- O Produto Coletado exige no minimo 2 e no maximo 6 fotos.
+- O Produto Coletado exige no minimo 1 e no maximo 6 fotos.
 - A ocorrencia relatada no Registro de Satisfacao do Cliente deve ter conteudo suficiente para caracterizar a reclamacao.
 - O Registro de Satisfacao do Cliente lancado pela tela fica sem chave de origem, para que uma reimportacao da planilha nunca o sobrescreva.
 - A secao Planos de acao e a abertura, os andamentos e o fechamento de um plano exigem `quality.create_complaint`, a mesma permissao da reclamacao: quem registra e quem trata.
@@ -273,7 +273,7 @@ Permitir que usuarios autorizados do setor de qualidade acompanhem indicadores, 
 | Codigo do problema | Usuario | Sim | Alimenta indicador por codigo. |
 | Colaboradores | Usuario | Sim | Alimenta indicador individual. |
 | Data da coleta | Usuario | Sim | Usada nos indicadores de coleta. |
-| Fotos da coleta | Usuario | Sim | Minimo 2, maximo 6. |
+| Fotos da coleta | Usuario | Sim | Minimo 1, maximo 6. |
 | Data da reclamacao | Usuario | Sim | Usada na taxa de satisfacao por periodo. |
 | Ocorrencia relatada | Usuario | Sim | Descreve a reclamacao recebida do cliente. |
 | Tratativa local | Usuario | Nao | Registro do que foi feito para atender o cliente. |
@@ -293,7 +293,7 @@ Permitir que usuarios autorizados do setor de qualidade acompanhem indicadores, 
 - Ao selecionar um item de grafico, o sistema exibe comparacao entre subconjunto e total sem perder os filtros principais.
 - Ao salvar um RAP valido, o sistema exibe confirmacao e o registro aparece na secao Registros.
 - Ao tentar salvar um RAP invalido, o sistema informa o erro e nao grava dados incompletos.
-- Ao salvar Produto Coletado com menos de duas fotos, o sistema bloqueia a gravacao.
+- Ao salvar Produto Coletado sem foto, o sistema bloqueia a gravacao.
 - Ao salvar Produto Coletado valido, o sistema armazena as fotos e exibe confirmacao.
 - Ao salvar um Registro de Satisfacao do Cliente valido, o sistema exibe confirmacao com o codigo `RSC` e a taxa de satisfacao e recalculada.
 - Ao imprimir um registro, a folha carrega os dados completos do RAP, do Produto Coletado ou do Registro de Satisfacao do Cliente.
@@ -324,8 +324,8 @@ Permitir que usuarios autorizados do setor de qualidade acompanhem indicadores, 
 1. Entrar com usuario que possui somente visualizacao e confirmar que botoes de criacao/exclusao nao aparecem.
 2. Entrar com usuario com permissao de RAP e criar um apontamento completo.
 3. Tentar criar RAP sem descricao ou colaborador e confirmar bloqueio.
-4. Entrar com usuario com permissao de Produto Coletado e tentar salvar com apenas uma foto.
-5. Criar Produto Coletado com duas fotos validas.
+4. Entrar com usuario com permissao de Produto Coletado e tentar salvar sem foto.
+5. Criar Produto Coletado com uma foto valida.
 6. Aplicar filtros por ano, mes, barracao, gate e colaborador.
 7. Clicar em graficos de RAPs, Produtos e Colaboradores para validar destaque.
 8. Entrar com usuario com permissao de Satisfacao do Cliente, registrar uma reclamacao e conferir o recalculo da taxa.

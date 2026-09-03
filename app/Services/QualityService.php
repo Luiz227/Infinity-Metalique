@@ -561,8 +561,8 @@ final class QualityService
                 throw new InvalidArgumentException('Uma das fotos mantidas não pertence a esta coleta.');
             }
             $finalPhotos = array_values(array_merge($keptPhotoPaths, $newPhotoPaths));
-            if (count($finalPhotos) < 2 || count($finalPhotos) > 6) {
-                throw new InvalidArgumentException('Mantenha entre duas e seis fotos do carregamento.');
+            if (count($finalPhotos) < 1 || count($finalPhotos) > 6) {
+                throw new InvalidArgumentException('Mantenha entre uma e seis fotos do carregamento.');
             }
 
             $clientId = $this->clientId($data['client']);

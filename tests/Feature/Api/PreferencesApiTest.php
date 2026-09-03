@@ -125,4 +125,78 @@ final class PreferencesApiTest extends TestCase
             ->assertOk()
             ->assertJsonCount(0, 'notifications');
     }
+
+    public function test_notificacoes_de_qualidade_aparecem_so_para_qualidade_e_nunca_para_o_criador(): void
+    {
+        $creator = User::factory()->create(['name' => 'Maria Operacao', 'sector' => 'Produção']);
+        $quality = User::factory()->create(['name' => 'Fabio Qualidade', 'sector' => 'Qualidade']);
+        DB::table('user_permissions')->insert([
+            ['user_id' => $creator->id, 'permission' => 'quality.create_rap'],
+            ['user_id' => $creator->id, 'permission' => 'quality.create_dispatch'],
+            ['user_id' => $quality->id, 'permission' => 'quality.create_rap'],
+        ]);
+
+        DB::table('inspection_reports')->insert([
+            [
+                'code' => 'RAP01',
+                'sequence' => 1,
+                'report_date' => '2026-09-03',
+                'action_type' => 'RNC',
+                'created_by_user_id' => $creator->id,
+                'created_at' => now()->subMinutes(2),
+                'updated_at' => now()->subMinutes(2),
+            ],
+            [
+                'code' => 'RAP02',
+                'sequence' => 2,
+                'report_date' => '2026-09-03',
+                'action_type' => 'RNC',
+                'created_by_user_id' => $quality->id,
+                'created_at' => now()->subMinute(),
+                'updated_at' => now()->subMinute(),
+            ],
+        ]);
+        DB::table('machine_dispatches')->insert([
+            'code' => 'RETIR1',
+            'sequence' => 1,
+            'dispatch_date' => '2026-09-03',
+            'created_by_user_id' => $creator->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($quality);
+        $qualityResponse = $this->getJson('/backend/api/notifications.php')->assertOk();
+        $qualityResponse->assertJsonCount(2, 'notifications');
+        $this->assertSame(
+            ['Nova coleta RETIR1', 'Novo RAP01'],
+            array_column($qualityResponse->json('notifications'), 'title')
+        );
+
+        $this->actingAs($creator);
+        $this->getJson('/backend/api/notifications.php')
+            ->assertOk()
+            ->assertJsonCount(0, 'notifications');
+    }
+
+    public function test_admin_fora_da_qualidade_nao_recebe_notificacoes_de_rap_ou_coleta(): void
+    {
+        $creator = User::factory()->create(['name' => 'Maria Operacao', 'sector' => 'Qualidade']);
+        $admin = User::factory()->create(['role' => 'admin', 'sector' => 'Desenvolvimento']);
+
+        DB::table('inspection_reports')->insert([
+            'code' => 'RAP01',
+            'sequence' => 1,
+            'report_date' => '2026-09-03',
+            'action_type' => 'RNC',
+            'created_by_user_id' => $creator->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($admin);
+        $this->getJson('/backend/api/notifications.php')
+            ->assertOk()
+            ->assertJsonCount(0, 'notifications');
+    }
 }

@@ -85,6 +85,40 @@ final class QualityApiTest extends TestCase
         $this->getJson('/backend/api/quality/revision.php')->assertJsonPath('revision', '1');
     }
 
+    public function test_cria_coleta_com_uma_foto_pela_api_laravel(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+        $machineTypeId = DB::table('machine_types')->insertGetId(['name' => 'LASER']);
+        $employeeId = DB::table('employees')->insertGetId([
+            'name' => 'Colaborador',
+            'normalized_name' => 'COLABORADOR',
+            'is_active' => true,
+            'created_at' => now(),
+        ]);
+
+        $this->actingAs($user);
+        $token = $this->getJson('/backend/api/csrf.php')->json('csrfToken');
+
+        $response = $this->post('/backend/api/quality/dispatch-create.php', [
+            'csrfToken' => $token,
+            'dispatchDate' => '2026-09-03',
+            'client' => 'Cliente Teste',
+            'machineTypeId' => $machineTypeId,
+            'model' => 'Modelo 1',
+            'needsFormUpdate' => false,
+            'employeeIds' => [$employeeId],
+            'photos' => [UploadedFile::fake()->image('foto-unica.jpg', 40, 40)],
+        ])->assertCreated()->assertJsonPath('dispatch.code', 'RETIR1');
+
+        $photos = $response->json('dispatch.photos');
+        $this->assertCount(1, $photos);
+        $this->assertDatabaseHas('machine_dispatches', ['code' => 'RETIR1', 'created_by_user_id' => $user->id]);
+        $this->assertDatabaseCount('machine_dispatch_photos', 1);
+        $this->assertFileExists(public_path($photos[0]));
+
+        @unlink(public_path($photos[0]));
+    }
+
     public function test_cria_e_exclui_registro_de_satisfacao_pela_api(): void
     {
         $machineTypeId = DB::table('machine_types')->insertGetId(['name' => 'LASER']);

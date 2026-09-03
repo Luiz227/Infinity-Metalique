@@ -18,6 +18,7 @@ import { RapForm } from "@/pages/quality/forms/RapForm"
 import { QualityImportDialog } from "@/pages/quality/QualityImportDialog"
 import { QualityPrintProvider } from "@/pages/quality/print/PrintContext"
 import { PrintSheet } from "@/pages/quality/print/PrintSheet"
+import type { RecordKind } from "@/pages/quality/RecordDeleteDialog"
 import { ActionPlansSection } from "@/pages/quality/sections/ActionPlansSection"
 import { DispatchSection } from "@/pages/quality/sections/DispatchSection"
 import { ProductsSection } from "@/pages/quality/sections/ProductsSection"
@@ -93,6 +94,7 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canCre
   // A aba inicial é a preferida da conta; o efeito abaixo corrige se ela não
   // estiver entre as visíveis.
   const [tab, setTab] = useState<TabId>(() => currentPreferences().qualityTab as TabId)
+  const [recordsKind, setRecordsKind] = useState<RecordKind>("report")
   const [options, setOptions] = useState<QualityOptions | null>(null)
   const [dashboard, setDashboard] = useState<QualityDashboard | null>(null)
   const [highlightDashboard, setHighlightDashboard] = useState<QualityDashboard | null>(null)
@@ -147,6 +149,7 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canCre
     ] satisfies { id: ExportDataset; label: string; description: string; enabled: boolean }[]
   }, [canCreateComplaint, canDelete, canImport, permissions])
   const enabledExportOptions = exportOptions.filter((item) => item.enabled)
+  const showExportButton = tab === "registros" && hasVisibleTab && enabledExportOptions.length > 0
 
   // De onde o gráfico veio e sob qual recorte ele está: é o que a folha
   // impressa escreve no cabeçalho, e nada disso o cartão sabe sozinho.
@@ -650,9 +653,9 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canCre
           </p>
         </div>
 
-        {(visibleTabs.length > 0 || canImport) && (canCreateRap || canCreateDispatch || canImport || showComplaintButton || showPlanButton || enabledExportOptions.length > 0) && (
+        {(visibleTabs.length > 0 || canImport) && (canCreateRap || canCreateDispatch || canImport || showComplaintButton || showPlanButton || showExportButton) && (
           <div className="flex flex-wrap gap-2">
-            {enabledExportOptions.length > 0 && (
+            {showExportButton && (
               <Button type="button" variant="outline" className="rounded-full" onClick={() => {
                 setExportDatasets(enabledExportOptions.map((item) => item.id))
                 setIsExportOpen(true)
@@ -849,9 +852,11 @@ export function QualityPage({ csrfToken, canCreateRap, canCreateDispatch, canCre
                     perPage={perPage}
                     canDelete={canDelete}
                     permissions={permissions}
+                    kind={recordsKind}
                     onReportsPageChange={setReportsPage}
                     onDispatchesPageChange={setDispatchesPage}
                     onComplaintsPageChange={setComplaintsPage}
+                    onKindChange={setRecordsKind}
                     onPerPageChange={changePerPage}
                     onPrint={(id) => setPrintTarget({ kind: "report", id })}
                     onPrintDispatch={(id) => setPrintTarget({ kind: "dispatch", id })}

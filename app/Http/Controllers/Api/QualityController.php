@@ -271,8 +271,8 @@ final class QualityController extends Controller
 
         $files = $request->file('photos', []);
         $files = is_array($files) ? array_values($files) : [$files];
-        if (count($files) < 2) {
-            return response()->json(['message' => 'Envie pelo menos duas fotos do carregamento.'], 422);
+        if (count($files) < 1) {
+            return response()->json(['message' => 'Envie pelo menos uma foto do carregamento.'], 422);
         }
         if (count($files) > 6) {
             return response()->json(['message' => 'Envie no máximo seis fotos por coleta.'], 422);
@@ -379,8 +379,8 @@ final class QualityController extends Controller
         $files = $request->file('photos', []);
         $files = is_array($files) ? array_values($files) : [$files];
         $totalPhotos = count($kept) + count($files);
-        if ($totalPhotos < 2 || $totalPhotos > 6) {
-            return response()->json(['message' => 'Mantenha entre duas e seis fotos do carregamento.'], 422);
+        if ($totalPhotos < 1 || $totalPhotos > 6) {
+            return response()->json(['message' => 'Mantenha entre uma e seis fotos do carregamento.'], 422);
         }
 
         $newPaths = [];

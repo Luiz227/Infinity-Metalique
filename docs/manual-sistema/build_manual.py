@@ -265,7 +265,7 @@ SCREENS = [
         "steps": [
             "Informe data, cliente, tipo de máquina, modelo e ocorrências do carregamento.",
             "Selecione o responsável e até dois colaboradores adicionais.",
-            "Adicione de duas a seis fotos do carregamento, com até 5 MB por arquivo.",
+            "Adicione de uma a seis fotos do carregamento, com até 5 MB por arquivo.",
             "Registre a ação imediata, informe se o formulário precisa ser alterado e selecione Gravar coleta.",
         ],
         "note": "São aceitas imagens JPEG, PNG ou WebP. O número RETIR é criado na gravação.",
@@ -738,7 +738,7 @@ def add_security_and_troubleshooting(doc: Document) -> None:
         ("Uma tela ou botão não aparece", "A conta provavelmente não possui a permissão correspondente. Solicite a revisão ao administrador."),
         ("O módulo Qualidade não carrega", "Atualize a página, confira a conexão e tente novamente. Se persistir, registre a mensagem apresentada e acione o suporte."),
         ("Não consigo gravar um RAP", "Revise os campos obrigatórios, a descrição mínima e a seleção de colaboradores."),
-        ("Não consigo gravar uma coleta", "Confirme os campos obrigatórios e a inclusão de duas a seis fotos válidas, com até 5 MB cada."),
+        ("Não consigo gravar uma coleta", "Confirme os campos obrigatórios e a inclusão de uma a seis fotos válidas, com até 5 MB cada."),
         ("A sessão expirou", "Atualize a página, faça login novamente e repita a operação. Dados ainda não gravados podem precisar ser preenchidos outra vez."),
     ]
     table = doc.add_table(rows=1, cols=2)

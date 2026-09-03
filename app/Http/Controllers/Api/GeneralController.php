@@ -13,6 +13,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 final class GeneralController extends Controller
 {
@@ -184,31 +185,46 @@ final class GeneralController extends Controller
                 }
             }
 
-            if ($user->hasPermission('quality.view') && $wants('quality')) {
-                $reports = DB::select(
-                    "SELECT CONCAT('report-', report.id) AS id,
-                            CONCAT('Novo ', report.code) AS title,
-                            CONCAT(creator.name, ' registrou este RAP.') AS description,
-                            report.created_at
-                       FROM inspection_reports report
-                       JOIN users creator ON creator.id = report.created_by_user_id AND creator.is_active = 1
-                      WHERE report.created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY)
-                        AND report.created_by_user_id <> :current_user_id
-                        AND (creator.role = 'admin' OR EXISTS (
-                            SELECT 1 FROM user_permissions permission
-                             WHERE permission.user_id = creator.id
-                               AND permission.permission IN ('quality.view', 'quality.manage')
-                        ))
-                      ORDER BY report.created_at DESC LIMIT 6",
-                    ['current_user_id' => $user->id]
-                );
+            if ($this->receivesQualityNotifications($user) && $wants('quality')) {
+                $since = CarbonImmutable::now()->subDays(14);
+
+                $reports = DB::table('inspection_reports as report')
+                    ->join('users as creator', function ($join): void {
+                        $join->on('creator.id', '=', 'report.created_by_user_id')
+                            ->where('creator.is_active', true);
+                    })
+                    ->where('report.created_at', '>=', $since)
+                    ->where('report.created_by_user_id', '<>', $user->id)
+                    ->orderByDesc('report.created_at')
+                    ->limit(6)
+                    ->get(['report.id', 'report.code', 'report.created_at', 'creator.name as creator_name']);
                 foreach ($reports as $report) {
                     $items[] = [
-                        'id' => (string) $report->id,
-                        'title' => (string) $report->title,
-                        'description' => (string) $report->description,
+                        'id' => 'report-'.$report->id,
+                        'title' => 'Novo '.$report->code,
+                        'description' => $report->creator_name.' registrou este RAP.',
                         'createdAt' => CarbonImmutable::parse($report->created_at)->toAtomString(),
                         'route' => '/qualidade', 'tab' => 'registros', 'kind' => 'quality',
+                    ];
+                }
+
+                $dispatches = DB::table('machine_dispatches as dispatch')
+                    ->join('users as creator', function ($join): void {
+                        $join->on('creator.id', '=', 'dispatch.created_by_user_id')
+                            ->where('creator.is_active', true);
+                    })
+                    ->where('dispatch.created_at', '>=', $since)
+                    ->where('dispatch.created_by_user_id', '<>', $user->id)
+                    ->orderByDesc('dispatch.created_at')
+                    ->limit(6)
+                    ->get(['dispatch.id', 'dispatch.code', 'dispatch.created_at', 'creator.name as creator_name']);
+                foreach ($dispatches as $dispatch) {
+                    $items[] = [
+                        'id' => 'dispatch-'.$dispatch->id,
+                        'title' => 'Nova coleta '.$dispatch->code,
+                        'description' => $dispatch->creator_name.' registrou esta coleta.',
+                        'createdAt' => CarbonImmutable::parse($dispatch->created_at)->toAtomString(),
+                        'route' => '/qualidade', 'tab' => 'coletas', 'kind' => 'quality',
                     ];
                 }
             }
@@ -219,5 +235,17 @@ final class GeneralController extends Controller
         usort($items, static fn (array $left, array $right): int => strcmp($right['createdAt'], $left['createdAt']));
 
         return response()->json(['notifications' => array_slice($items, 0, 8)]);
+    }
+
+    private function receivesQualityNotifications(User $user): bool
+    {
+        if (! $user->hasPermission('quality.view')) {
+            return false;
+        }
+
+        $sector = Str::upper(Str::ascii(trim((string) $user->sector)));
+        $sector = trim((string) preg_replace('/[^A-Z0-9]+/', ' ', $sector));
+
+        return $sector === 'QUALIDADE' || str_contains($sector, 'QUALIDADE');
     }
 }
